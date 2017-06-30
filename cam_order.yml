@@ -1,0 +1,6 @@
+%YAML:1.0
+---
+num_of_cameras : 3
+right: 0
+left: 1
+front: 2
