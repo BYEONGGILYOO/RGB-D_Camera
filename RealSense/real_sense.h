@@ -487,7 +487,15 @@ int RealSense::initialize(void)
 		depth_to_color[i] = ctx.get_device(i)->get_extrinsics(rs::stream::depth, rs::stream::color);
 		memcpy(data->depth_to_color_R[i], depth_to_color[i].rotation, sizeof(float) * 9);
 		memcpy(data->depth_to_color_tvec[i], depth_to_color[i].translation, sizeof(float) * 3);
-
+		std::cout << "Rotation" << std::endl;
+		for (int x = 0; x < 9; x++) {
+			std::cout << data->depth_to_color_R[i][x] << ", ";
+			if ((x + 1) % 3 == 0)
+				std::cout << std::endl;
+		}
+		std::cout << "tvec" << std::endl;
+		for (int x = 0; x < 3; x++)
+			std::cout << data->depth_to_color_tvec[i][x] << std::endl;
 		fScale[i] = ctx.get_device(i)->get_depth_scale();
 		//memcpy(&data->depthScale[i], &fScale[i], sizeof(float));
 

@@ -3,12 +3,11 @@
 #include <iostream>
 #include "opencv2\core.hpp"
 #include "opencv2\imgproc.hpp"
-#include "opencv2\highgui.hpp"
 
 Orbbec::Orbbec(RGBDcamera * data, IPC * ipc)
 	:m_pData(data), m_pIpc(ipc), num_of_cameras(0), m_pDevice(nullptr)
 {
-	initialize();
+	
 }
 
 Orbbec::~Orbbec()
@@ -30,7 +29,7 @@ Orbbec::~Orbbec()
 	m_pRGBDparam = nullptr;
 }
 
-bool Orbbec::initialize()
+bool Orbbec::initialize(std::string cam_order_path)
 {
 	openni::OpenNI::initialize();
 	openni::Array<openni::DeviceInfo> list_of_devices;
@@ -42,11 +41,21 @@ bool Orbbec::initialize()
 		throw std::runtime_error("No device detected!");
 		return false;
 	}
+
+	if (num_of_cameras > 1)
+		readCalibrationData(cam_order_path);
+
 	std::cout << "[Info] " << num_of_cameras << " sensors are detected" << std::endl;
+	std::cout << "Camera order: ";
+	for (int i = 0; i < num_of_cameras; i++)
+		std::cout << cam_order[i] << ", ";
+	std::cout << std::endl;
 
 	m_pDevice = new openni::Device[num_of_cameras];
 	m_pStreamColor = new openni::VideoStream[num_of_cameras];
 	m_pStreamDepth = new openni::VideoStream[num_of_cameras];
+
+	m_pStreamIr = new openni::VideoStream[num_of_cameras];
 
 	m_pRGBDparam = new RGBD_Parameters[num_of_cameras];
 
@@ -60,13 +69,21 @@ bool Orbbec::initialize()
 	for (int i = 0; i < num_of_cameras; i++)
 	{
 		m_pDevice[i].open(list_of_devices[i].getUri());
-		printf("%c. %s->%s (VID:%d | PID : %d) is connected""at %s\r\n", 'a' + i, list_of_devices[i].getVendor(),
+		printf("%c. %s->%s (VID : %d | PID : %d) is connected""at %s\r\n", 'a' + i, list_of_devices[i].getVendor(),
 			list_of_devices[i].getName(), list_of_devices[i].getUsbVendorId(), list_of_devices[i].getUsbProductId(), list_of_devices[i].getUri());
 		m_pStreamDepth[i].create(m_pDevice[i], openni::SENSOR_DEPTH);
 		m_pStreamColor[i].create(m_pDevice[i], openni::SENSOR_COLOR);
 		m_pStreamDepth[i].start();
 		m_pStreamColor[i].start();
 
+		if (/*bIR*/0) {
+			m_pStreamIr[i].create(m_pDevice[i], openni::SENSOR_IR);
+			m_pStreamIr[i].start();
+			openni::VideoMode mModeIR;
+			mModeIR.setPixelFormat(openni::PIXEL_FORMAT_DEPTH_1_MM);
+			m_pStreamIr[i].setVideoMode(mModeIR);
+		}
+		
 		openni::VideoMode mModeDepth, mModeColor;
 		mModeDepth.setResolution(nWidth, nHeight);
 		mModeDepth.setFps(30);
@@ -105,8 +122,6 @@ void Orbbec::getColor(int dev_idx)
 		cv::Mat bgrImage(m_pData->colorHeight, m_pData->colorWidth, CV_8UC3,
 			m_pData->colorData[dev_idx]);
 		cv::cvtColor(rgbImage, bgrImage, CV_RGB2BGR);
-		cv::imshow("test11", bgrImage);
-		cv::waitKey(10);
 	}
 }
 
@@ -124,6 +139,14 @@ void Orbbec::getDepth(int dev_idx)
 		const cv::Mat depthImage(m_pData->depthHeight, m_pData->depthWidth, CV_16UC1,
 			(ushort*)frame_depth.getData());
 		memcpy(m_pData->depthData[dev_idx], frame_depth.getData(), sizeof(ushort)*m_pData->depthHeight*m_pData->depthWidth);
+	}
+
+	openni::VideoFrameRef frame_ir;
+	m_pStreamIr[dev_idx].readFrame(&frame_ir);
+	if (frame_ir.isValid())
+	{
+		const cv::Mat irImage(frame_ir.getHeight(), frame_ir.getWidth(), CV_16UC1, (ushort*)frame_ir.getData());
+		ir = irImage.clone();
 	}
 }
 
@@ -158,11 +181,38 @@ void Orbbec::threadRun()
 
 void Orbbec::readCalibrationData(std::string path)
 {
-	readCameraOrder(path + "\\cam_order.yml", cam_order);
+	readCameraOrder(path + "cam_order.yml", cam_order);
 
 	for (int i = 0; i < num_of_cameras; i++)
 	{
-		readParameterYaml(path + "\\orbbec_calibration_" + cam_order[i] + ".yml", &this->m_pRGBDparam[i]);
+		readParameterYaml(path + "orbbec_calibration_" + cam_order[i] + ".yml", &this->m_pRGBDparam[i]);
+		const char* tmp = cam_order[i].c_str();
+		memcpy(m_pData->camera_order[i], tmp, strlen(tmp) + 1);
+		m_pData->colorK[i][0] = m_pRGBDparam[i].color_intrinsic.ppx;
+		m_pData->colorK[i][1] = m_pRGBDparam[i].color_intrinsic.ppy;
+		m_pData->colorK[i][2] = m_pRGBDparam[i].color_intrinsic.fx;
+		m_pData->colorK[i][3] = m_pRGBDparam[i].color_intrinsic.fy;
+		memcpy(m_pData->colorCoeffs[i], m_pRGBDparam[i].color_intrinsic.coeffs, sizeof(float) * 5);
+
+		m_pData->depthK[i][0] = m_pRGBDparam[i].depth_intrinsic.ppx;
+		m_pData->depthK[i][1] = m_pRGBDparam[i].depth_intrinsic.ppy;
+		m_pData->depthK[i][2] = m_pRGBDparam[i].depth_intrinsic.fx;
+		m_pData->depthK[i][3] = m_pRGBDparam[i].depth_intrinsic.fy;
+		memcpy(m_pData->depthCoeffs[i], m_pRGBDparam[i].depth_intrinsic.coeffs, sizeof(float) * 5);
+
+		
+		cv::Mat mat_tmp = cv::Mat(3, 3, CV_32FC1, m_pRGBDparam[i].depth_to_color.rotation).clone();
+		mat_tmp = mat_tmp.inv();
+		memcpy(m_pData->depth_to_color_R, mat_tmp.data, sizeof(float) * 9);
+		mat_tmp = cv::Mat(3, 1, CV_32FC1, m_pRGBDparam[i].depth_to_color.translation).clone();
+		mat_tmp = -mat_tmp;// *0.001f;
+		memcpy(m_pData->depth_to_color_tvec, mat_tmp.data, sizeof(float) * 3);
+		
+		//memcpy(m_pData->depth_to_color_R, m_pRGBDparam[i].depth_to_color.rotation, sizeof(float) * 9);
+		//cv::Mat mat_tmp = cv::Mat(3, 1, CV_32FC1, m_pRGBDparam[i].depth_to_color.translation).clone();
+		//mat_tmp = -mat_tmp;// *0.001f;
+		//memcpy(m_pData->depth_to_color_tvec, mat_tmp.data, sizeof(float) * 3);
+		////memcpy(m_pData->depth_to_color_tvec, m_pRGBDparam[i].depth_to_color.translation, sizeof(float) * 3);
 	}
 }
 
@@ -171,6 +221,6 @@ void Orbbec::writeCalibrationData(std::string path)
 	for (int i = 0; i < num_of_cameras; i++)
 	{
 		cam_order.push_back(std::to_string(i));
-		writeParametersYaml(std::string(path + "\\orbbec_calibration_" + cam_order[i] + ".yml"), &this->m_pRGBDparam[i]);
+		writeParametersYaml(std::string(path + "\\Orbbec_calibration_" + cam_order[i] + ".yml"), &this->m_pRGBDparam[i]);
 	}
 }

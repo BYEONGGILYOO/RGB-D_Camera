@@ -1,0 +1,43 @@
+%YAML:1.0
+---
+cam_name: "left"
+rgb_intrinsics: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: f
+   data: [ 514.614933314305, 0., 308.103610005303, 0., 514.800290081212, 251.915388926476, 0., 0., 1. ]
+rgb_distortion: !!opencv-matrix
+   rows: 1
+   cols: 5
+   dt: f
+   data: [ 0., 0., 0., 0., 0. ]
+depth_intrinsics: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: f
+   data: [ 580.923268638380, 0., 323.623745180663, 0., 582.841134354449, 252.106540506357, 0., 0., 1. ]
+depth_distortion: !!opencv-matrix
+   rows: 1
+   cols: 5
+   dt: f
+   data: [ 0., 0., 0., 0., 0. ]
+depth_to_color_Rot: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: f
+   data: [ 1., 0., 0., 0., 1., 0., 0., 0., 1.]
+depth_to_color_tvec: !!opencv-matrix
+   rows: 3
+   cols: 1
+   dt: f
+   data: [ 0., 0., 0. ]
+depth_to_color_Rot2: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: f
+   data: [ 0.999933674265258, 0.00332370862167216, 0.0110272404244611, -0.00338830853702643, 0.999977179098939, 0.00584471099257433, -0.0110075626565812, -0.00588168703069345, 0.999922116628107 ]
+depth_to_color_tvec2: !!opencv-matrix
+   rows: 3
+   cols: 1
+   dt: f
+   data: [ -252.702012139199, -2.56160100354535, -5.59316571878290 ]
