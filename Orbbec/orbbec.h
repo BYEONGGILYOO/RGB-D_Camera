@@ -29,6 +29,8 @@ public:
 	bool startDepthstream(const int dev_idx) const;
 	void stopRGBorIRstream(const int dev_idx) const;
 	void stopDepthstream(const int dev_idx) const;
+
+	void getDepthHistogram(cv::Mat &src, cv::Mat &dst);
 private:
 	RGBDcamera *m_pData;
 	IPC *m_pIpc;

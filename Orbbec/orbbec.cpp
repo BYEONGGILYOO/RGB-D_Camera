@@ -63,7 +63,7 @@ bool Orbbec::initialize(std::string cam_order_path)
 	}
 	else if (num_of_cameras == 1)	// for test
 	{
-		cam_order.push_back("left");
+		cam_order.push_back("front");
 		readParameterYaml(cam_order_path + "orbbec_calibration_" + cam_order[0] + ".yml", &this->m_pRGBDparam[0]);
 		const char* tmp = cam_order[0].c_str();
 		memcpy(m_pData->camera_order[0], tmp, strlen(tmp) + 1);
@@ -266,6 +266,51 @@ void Orbbec::stopDepthstream(const int dev_idx) const
 {
 	m_pStreamDepth[dev_idx].stop();
 	m_pStreamDepth[dev_idx].destroy();
+}
+
+void Orbbec::getDepthHistogram(cv::Mat & src, cv::Mat & dst)
+{
+	float depthHistogram[65536];
+	int numberOfPoints = 0;
+	cv::Mat depthHist(src.rows, src.cols, CV_8UC3);
+	memset(depthHistogram, 0, sizeof(depthHistogram));
+	for (int y = 0; y < src.rows; ++y)
+	{
+		ushort* depthCell = (ushort*)src.ptr<uchar>(y);
+		for (int x = 0; x < src.cols; ++x)
+		{
+			if (*depthCell != 0)
+			{
+				depthHistogram[*depthCell]++;
+				numberOfPoints++;
+			}
+			depthCell++;
+		}
+	}
+
+	for (int nIndex = 1; nIndex < sizeof(depthHistogram) / sizeof(int); nIndex++)
+	{
+		depthHistogram[nIndex] += depthHistogram[nIndex - 1];
+	}
+	for (int nIndex = 1; nIndex < sizeof(depthHistogram) / sizeof(int); nIndex++)
+	{
+		depthHistogram[nIndex] = (numberOfPoints - depthHistogram[nIndex]) / numberOfPoints;
+	}
+	for (int y = 0; y < src.rows; ++y)
+	{
+		ushort* depthCell = (ushort*)src.ptr<uchar>(y);
+		uchar * showcell = (uchar *)depthHist.ptr<uchar>(y);
+		for (int x = 0; x < src.cols; ++x)
+		{
+			char depthValue = depthHistogram[*depthCell] * 255;
+			*showcell++ = 0;
+			*showcell++ = depthValue;
+			*showcell++ = depthValue;
+
+			depthCell++;
+		}
+	}
+	dst = depthHist;
 }
 
 void Orbbec::threadRun()

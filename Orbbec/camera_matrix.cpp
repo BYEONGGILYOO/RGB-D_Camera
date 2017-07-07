@@ -1,66 +1,46 @@
-/*
-* =====================================================================================
-*
-*       Filename:  camera_matrix.h
-*
-*    Description:
-*
-*        Version:  1.0
-*        Created:  2017 . 06 . 29 , 23 : 52 : 28
-*       Revision:  none
-*       Compiler:  VS2015
-*
-*         Author:  BYEONGGILYOO
-*   Organization: Hanyang Univ.
-*
-* =====================================================================================
-*/
-#ifndef CAMERA_MATRIX_H
-#define CAMERA_MATRIX_H
+#include "camera_matrix.h"
 
-#include <iostream>
-#include <string>
-#include "opencv2/core.hpp"
-#include <eigen\Eigen\Core>
-
-// basic camera parameters
-struct float2 { float x, y; };
-struct float3 { float x, y, z; };
-
-typedef struct _intrinsics_
+_intrinsics_::_intrinsics_()
+	:width(0), height(0), ppx(0.f), ppy(0.f), fx(0.f), fy(0.f)
 {
-	int width, height;
-	float ppx, ppy, fx, fy;
-	float coeffs[5];
-	_intrinsics_() :width(0), height(0), ppx(0.f), ppy(0.f), fx(0.f), fy(0.f)
-	{
-		memset(coeffs, 0, sizeof(float) * 5);
-	}
-	_intrinsics_(const _intrinsics_& intr) { 
-		width = intr.width; height = intr.height; ppx = intr.ppx; ppy = intr.ppy; fx = intr.fx; fy = intr.fy;
-		memcpy(coeffs, intr.coeffs, sizeof(float) * 5);
-	}
-}Intrinsics;
+	memset(coeffs, 0, sizeof(float) * 5);
+}
 
-typedef struct _extrinsics_
+_intrinsics_::_intrinsics_(const _intrinsics_& intr) {
+	width = intr.width; height = intr.height; ppx = intr.ppx; ppy = intr.ppy; fx = intr.fx; fy = intr.fy;
+	memcpy(coeffs, intr.coeffs, sizeof(float) * 5);
+}
+
+_extrinsics_::_extrinsics_()
 {
-	float rotation[9];
-	float translation[3];
-	_extrinsics_() 
-	{
-		rotation[0] = rotation[4] = rotation[8] = 1.f;
-		rotation[1] = rotation[2] = rotation[3] = rotation[5] = rotation[6] = rotation[7]
-			= translation[0] = translation[1] = translation[2] = 0.f;
-	}
-	_extrinsics_(const _extrinsics_& ext)
-	{
-		memcpy(rotation, ext.rotation, sizeof(float) * 9);
-		memcpy(translation, ext.translation, sizeof(float) * 3);
-	}
-}Extrinsics;
+	rotation[0] = rotation[4] = rotation[8] = 1.f;
+	rotation[1] = rotation[2] = rotation[3] = rotation[5] = rotation[6] = rotation[7]
+		= translation[0] = translation[1] = translation[2] = 0.f;
+}
 
-// basic functions
-static void project_point_to_pixel(
+_extrinsics_::_extrinsics_(const _extrinsics_& ext)
+{
+	memcpy(rotation, ext.rotation, sizeof(float) * 9);
+	memcpy(translation, ext.translation, sizeof(float) * 3);
+}
+bool _rgbd_extrinsics_::isIdentity() const
+{
+	return (rotation[0] == 1) && (rotation[4] == 1) && (translation[0] == 0) && (translation[1] == 0) && (translation[2] == 0);
+}
+
+_camera_raw_data_::_camera_raw_data_()
+{
+
+}
+
+_camera_raw_data_::_camera_raw_data_(const _camera_raw_data_& crd)
+{
+	this->colorData = crd.colorData;
+	this->depthData = crd.depthData;
+	this->rgbdParam = crd.rgbdParam;
+}
+
+void project_point_to_pixel(
 	float pixel[2],
 	const struct _intrinsics_ * intrin,
 	const float point[3],
@@ -85,7 +65,7 @@ static void project_point_to_pixel(
 	pixel[1] = y * intrin->fy + intrin->ppy;
 }
 
-static void deproject_pixel_to_point(
+void deproject_pixel_to_point(
 	float point[3],
 	const struct _intrinsics_* intrin,
 	const float pixel[2],
@@ -111,7 +91,7 @@ static void deproject_pixel_to_point(
 	point[2] = depth;
 }
 
-static void transform_point_to_point(
+void transform_point_to_point(
 	float to_point[3],
 	const struct _extrinsics_ * extrin,
 	const float from_point[3])
@@ -121,51 +101,14 @@ static void transform_point_to_point(
 	to_point[2] = extrin->rotation[6] * from_point[0] + extrin->rotation[7] * from_point[1] + extrin->rotation[8] * from_point[2] + extrin->translation[2];
 }
 
-// rgbd camera parameters
-typedef struct _rgbd_intrinsics_ : Intrinsics
+void transform_point_to_point(float to_point[3], float rotation[9], float translation[3], const float from_point[3])
 {
-	inline float2 project(const float3& point, bool coeffs = false) const
-	{
-		float2 pixel = {};
-		project_point_to_pixel(&pixel.x, this, &point.x, coeffs);
-		return pixel;
-	}
-	inline float3 deproject(const float2& pixel, float depth, bool coeffs = false) const
-	{
-		float3 point = {};
-		deproject_pixel_to_point(&point.x, this, &pixel.x, depth, coeffs);
-		return point;
-	}
-}RGBD_Intrinsics;
+	to_point[0] = rotation[0] * from_point[0] + rotation[3] * from_point[1] + rotation[6] * from_point[2] + translation[0];
+	to_point[1] = rotation[1] * from_point[0] + rotation[4] * from_point[1] + rotation[7] * from_point[2] + translation[1];
+	to_point[2] = rotation[2] * from_point[0] + rotation[5] * from_point[1] + rotation[8] * from_point[2] + translation[2];
+};
 
-typedef struct _rgbd_extrinsics_ : Extrinsics
-{
-	bool isIdentity() const
-	{
-		return (rotation[0] == 1) && (rotation[4] == 1) && (translation[0] == 0) && (translation[1] == 0) && (translation[2] == 0);
-	}
-	inline float3 transform(const float3& point) const
-	{
-		float3 p = {};
-		transform_point_to_point(&p.x, this, &point.x);
-		return p;
-	}
-}RGBD_Extrinsics;
-
-static void calculate_depth_to_color_matrix(const struct _rgbd_parameters_* data, float* transform_matrix);
-typedef struct _rgbd_parameters_
-{
-	std::string cam_name;
-	RGBD_Intrinsics color_intrinsic;
-	RGBD_Intrinsics depth_intrinsic;
-	RGBD_Extrinsics depth_to_color;
-	inline void get_depth2color_all_matrix(float* dst) const
-	{
-		calculate_depth_to_color_matrix(this, dst);
-	}
-}RGBD_Parameters;
-
-static void calculate_depth_to_color_matrix(const struct _rgbd_parameters_* data, float* transform_matrix)
+void calculate_depth_to_color_matrix(const struct _rgbd_parameters_* data, float* transform_matrix)
 {
 	Eigen::Matrix<double, 4, 4> depthK;
 	Eigen::Matrix<double, 4, 4> depthK_inv;
@@ -183,7 +126,7 @@ static void calculate_depth_to_color_matrix(const struct _rgbd_parameters_* data
 		0.f, 0.f, 0.f, 1.f;
 	d2c << data->depth_to_color.rotation[0], data->depth_to_color.rotation[1], data->depth_to_color.rotation[2], data->depth_to_color.translation[0],
 		data->depth_to_color.rotation[3], data->depth_to_color.rotation[4], data->depth_to_color.rotation[5], data->depth_to_color.translation[1],
-		data->depth_to_color.rotation[6], data->depth_to_color.rotation[7], data->depth_to_color.rotation[6], data->depth_to_color.translation[2],
+		data->depth_to_color.rotation[6], data->depth_to_color.rotation[7], data->depth_to_color.rotation[8], data->depth_to_color.translation[2],
 		0.f, 0.f, 0.f, 1.f;
 	dst = colorK * d2c * depthK.inverse();
 
@@ -210,28 +153,7 @@ static void calculate_depth_to_color_matrix(const struct _rgbd_parameters_* data
 	std::cout << "All_Mat" << std::endl << dst << std::endl;
 }
 
-typedef struct _camera_raw_data
-{
-	std::pair<int, std::string> cam_id;
-	std::vector<cv::Mat> colorData, depthData;
-	_rgbd_parameters_ rgbdParam;
-
-	_camera_raw_data(){}
-	_camera_raw_data(const _camera_raw_data& crd)
-	{
-		this->colorData = crd.colorData;
-		this->depthData = crd.depthData;
-		this->rgbdParam = crd.rgbdParam;
-	}
-}Data;
-
-static void transform_point_to_point(float to_point[3], float rotation[9], float translation[3], const float from_point[3])
-{
-	to_point[0] = rotation[0] * from_point[0] + rotation[3] * from_point[1] + rotation[6] * from_point[2] + translation[0];
-	to_point[1] = rotation[1] * from_point[0] + rotation[4] * from_point[1] + rotation[7] * from_point[2] + translation[1];
-	to_point[2] = rotation[2] * from_point[0] + rotation[5] * from_point[1] + rotation[8] * from_point[2] + translation[2];
-};
-static void readParameterYaml(std::string full_path, struct _rgbd_parameters_ * data)
+void readParameterYaml(std::string full_path, struct _rgbd_parameters_ * data)
 {
 	cv::FileStorage fs(full_path, cv::FileStorage::READ);
 	if (!fs.isOpened()) {
@@ -264,7 +186,8 @@ static void readParameterYaml(std::string full_path, struct _rgbd_parameters_ * 
 	fs.release();
 	return;
 };
-static void writeParametersYaml(std::string full_path, const struct _rgbd_parameters_ * data)
+
+void writeParametersYaml(std::string full_path, const struct _rgbd_parameters_ * data)
 {
 	cv::FileStorage fs(full_path, cv::FileStorage::WRITE);
 	if (!fs.isOpened()) {
@@ -290,7 +213,8 @@ static void writeParametersYaml(std::string full_path, const struct _rgbd_parame
 	fs.release();
 	return;
 };
-static void readCameraOrder(std::string full_path, std::vector<std::string>& cam_order, int& ref_cam_idx)
+
+void readCameraOrder(std::string full_path, std::vector<std::string>& cam_order, int& ref_cam_idx)
 {
 	cv::FileStorage fs;
 	if (!fs.open(full_path, cv::FileStorage::READ))
@@ -322,5 +246,3 @@ static void readCameraOrder(std::string full_path, std::vector<std::string>& cam
 	cam_order = order;
 	return;
 };
-
-#endif /* COMMON_FUNCTIONS_H_ */
