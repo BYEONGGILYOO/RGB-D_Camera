@@ -21,7 +21,9 @@
 #include <iostream>
 #include <string>
 #include "opencv2/core.hpp"
+#include <eigen\Eigen\Core>
 
+// basic camera parameters
 struct float2 { float x, y; };
 struct float3 { float x, y, z; };
 
@@ -57,6 +59,7 @@ typedef struct _extrinsics_
 	}
 }Extrinsics;
 
+// basic functions
 static void project_point_to_pixel(
 	float pixel[2],
 	const struct _intrinsics_ * intrin,
@@ -113,11 +116,12 @@ static void transform_point_to_point(
 	const struct _extrinsics_ * extrin,
 	const float from_point[3])
 {
-	to_point[0] = extrin->rotation[0] * from_point[0] + extrin->rotation[3] * from_point[1] + extrin->rotation[6] * from_point[2] + extrin->translation[0];
-	to_point[1] = extrin->rotation[1] * from_point[0] + extrin->rotation[4] * from_point[1] + extrin->rotation[7] * from_point[2] + extrin->translation[1];
-	to_point[2] = extrin->rotation[2] * from_point[0] + extrin->rotation[5] * from_point[1] + extrin->rotation[8] * from_point[2] + extrin->translation[2];
+	to_point[0] = extrin->rotation[0] * from_point[0] + extrin->rotation[1] * from_point[1] + extrin->rotation[2] * from_point[2] + extrin->translation[0];
+	to_point[1] = extrin->rotation[3] * from_point[0] + extrin->rotation[4] * from_point[1] + extrin->rotation[5] * from_point[2] + extrin->translation[1];
+	to_point[2] = extrin->rotation[6] * from_point[0] + extrin->rotation[7] * from_point[1] + extrin->rotation[8] * from_point[2] + extrin->translation[2];
 }
 
+// rgbd camera parameters
 typedef struct _rgbd_intrinsics_ : Intrinsics
 {
 	inline float2 project(const float3& point, bool coeffs = false) const
@@ -148,13 +152,63 @@ typedef struct _rgbd_extrinsics_ : Extrinsics
 	}
 }RGBD_Extrinsics;
 
+static void calculate_depth_to_color_matrix(const struct _rgbd_parameters_* data, float* transform_matrix);
 typedef struct _rgbd_parameters_
 {
 	std::string cam_name;
 	RGBD_Intrinsics color_intrinsic;
 	RGBD_Intrinsics depth_intrinsic;
 	RGBD_Extrinsics depth_to_color;
+	inline void get_depth2color_all_matrix(float* dst) const
+	{
+		calculate_depth_to_color_matrix(this, dst);
+	}
 }RGBD_Parameters;
+
+static void calculate_depth_to_color_matrix(const struct _rgbd_parameters_* data, float* transform_matrix)
+{
+	Eigen::Matrix<double, 4, 4> depthK;
+	Eigen::Matrix<double, 4, 4> depthK_inv;
+	Eigen::Matrix<double, 4, 4> colorK;
+	Eigen::Matrix<double, 4, 4> d2c;
+	Eigen::Matrix<double, 4, 4> dst;
+
+	depthK << data->depth_intrinsic.fx, 0.f, data->depth_intrinsic.ppx, 0.f,
+		0.f, data->depth_intrinsic.fy, data->depth_intrinsic.ppy, 0.f,
+		0.f, 0.f, 1.f, 0.f,
+		0.f, 0.f, 0.f, 1.f;
+	colorK << data->color_intrinsic.fx, 0.f, data->color_intrinsic.ppx, 0.f,
+		0.f, data->color_intrinsic.fy, data->color_intrinsic.ppy, 0.f,
+		0.f, 0.f, 1.f, 0.f,
+		0.f, 0.f, 0.f, 1.f;
+	d2c << data->depth_to_color.rotation[0], data->depth_to_color.rotation[1], data->depth_to_color.rotation[2], data->depth_to_color.translation[0],
+		data->depth_to_color.rotation[3], data->depth_to_color.rotation[4], data->depth_to_color.rotation[5], data->depth_to_color.translation[1],
+		data->depth_to_color.rotation[6], data->depth_to_color.rotation[7], data->depth_to_color.rotation[6], data->depth_to_color.translation[2],
+		0.f, 0.f, 0.f, 1.f;
+	dst = colorK * d2c * depthK.inverse();
+
+	transform_matrix[0] = dst(0, 0);
+	transform_matrix[1] = dst(0, 1);
+	transform_matrix[2] = dst(0, 2);
+	transform_matrix[3] = dst(0, 3);
+	transform_matrix[4] = dst(1, 0);
+	transform_matrix[5] = dst(1, 1);
+	transform_matrix[6] = dst(1, 2);
+	transform_matrix[7] = dst(1, 3);
+	transform_matrix[8] = dst(2, 0);
+	transform_matrix[9] = dst(2, 1);
+	transform_matrix[10] = dst(2, 2);
+	transform_matrix[11] = dst(2, 3);
+	transform_matrix[12] = dst(3, 0);
+	transform_matrix[13] = dst(3, 1);
+	transform_matrix[14] = dst(3, 2);
+	transform_matrix[15] = dst(3, 3);
+
+	std::cout << "depth_K_Mat" << std::endl << depthK << std::endl;
+	std::cout << "color_K_Mat" << std::endl << colorK << std::endl;
+	std::cout << "depth2color_Mat" << std::endl << d2c << std::endl;
+	std::cout << "All_Mat" << std::endl << dst << std::endl;
+}
 
 typedef struct _camera_raw_data
 {
@@ -236,7 +290,7 @@ static void writeParametersYaml(std::string full_path, const struct _rgbd_parame
 	fs.release();
 	return;
 };
-static void readCameraOrder(std::string full_path, std::vector<std::string>& cam_order)
+static void readCameraOrder(std::string full_path, std::vector<std::string>& cam_order, int& ref_cam_idx)
 {
 	cv::FileStorage fs;
 	if (!fs.open(full_path, cv::FileStorage::READ))
@@ -246,6 +300,7 @@ static void readCameraOrder(std::string full_path, std::vector<std::string>& cam
 	}
 
 	int num_of_cam = (int)fs["num_of_cameras"];
+	ref_cam_idx = (int)fs["ref_camera_idx"];
 	std::vector<std::string> order(num_of_cam);
 	if (num_of_cam == 3)
 	{

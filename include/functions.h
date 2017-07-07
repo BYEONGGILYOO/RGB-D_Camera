@@ -465,6 +465,7 @@ struct LocalizerData
 struct RGBDcamera {
 	unsigned char colorData[4][640 * 480 * 3];
 	unsigned short depthData[4][640 * 480 * 1];
+	unsigned short irData[4][640 * 480 * 1];
 
 	// cx, cy, fx, fy
 	float colorK[4][4];

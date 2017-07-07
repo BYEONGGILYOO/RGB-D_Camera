@@ -1,6 +1,7 @@
 %YAML:1.0
 ---
 num_of_cameras : 3
-right: 0
-left: 1
-front: 2
+ref_camera_idx : 1
+right: 2
+left: 0
+front: 1

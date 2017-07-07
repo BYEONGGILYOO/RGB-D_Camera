@@ -1,0 +1,33 @@
+%YAML:1.0
+---
+cam_name: "front"
+rgb_intrinsics: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: f
+   data: [ 561.605349345123, 0., 322.662700620424, 0., 522.622005831775, 258.897661899731, 0., 0., 1. ]
+rgb_distortion: !!opencv-matrix
+   rows: 1
+   cols: 5
+   dt: f
+   data: [ 0., 0., 0., 0., 0. ]
+depth_intrinsics: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: f
+   data: [ 625.422146523463, 0., 318.086946032076, 0., 584.001227409816, 254.107901380701, 0., 0., 1. ]
+depth_distortion: !!opencv-matrix
+   rows: 1
+   cols: 5
+   dt: f
+   data: [ 0., 0., 0., 0., 0. ]
+depth_to_color_Rot: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: f
+   data: [ 0.999976643144903, 0.00440967917583466, -0.00522186692828771, -0.00448390823595619, 0.999887843248439, -0.0142896987692591, 0.00515826827356419, 0.0143127793789624, 0.999884261609746 ]
+depth_to_color_tvec: !!opencv-matrix
+   rows: 3
+   cols: 1
+   dt: f
+   data: [ -22.7747761145299, 0.616743288716532, 7.18332783945061 ]
