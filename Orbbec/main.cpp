@@ -9,6 +9,8 @@
 
 #include "orbbec.h"
 
+void commend_thread(Orbbec* orbbec);
+std::thread sensorThread;
 int main(int argc, char** argv)
 {
 	IPC ipc("Orbbec.exe");
@@ -28,7 +30,7 @@ int main(int argc, char** argv)
 		orbbec.startRGBorIRstream(i);
 	}
 
-	std::thread sensorThread(&Orbbec::threadRun, &orbbec);
+	sensorThread = std::thread(&Orbbec::threadRun, &orbbec);
 	/*std::thread forTest([&]() {
 		Sleep(10000);
 		IPC ipc("test.exe");
@@ -162,7 +164,7 @@ int main(int argc, char** argv)
 
 		while (1)
 		{
-			if (!orbbec.m_bIRon)
+			if (!orbbec.IRenabled())
 			{
 				memcpy(img1.data, data2->colorData[0], sizeof(uchar)*data2->colorHeight*data2->colorWidth * 3);
 				memcpy(img2.data, data2->colorData[1], sizeof(uchar)*data2->colorHeight*data2->colorWidth * 3);
@@ -298,9 +300,12 @@ int main(int argc, char** argv)
 		sensorThread.join();
 		registration.join();
 	}
+
+	std::thread commendThread(commend_thread, &orbbec);
 	sensorThread.join();
 	//forTest.join();
-	takePictureForCalibration.join();
+	takePictureForCalibration.join();	
+	commendThread.join();
 
 	for (int i = 0; i < num_of_sensor; i++)
 	{
@@ -308,4 +313,51 @@ int main(int argc, char** argv)
 		orbbec.stopDepthstream(i);
 	}
 	return 0;
+}
+
+void commend_thread(Orbbec* orbbec)
+{
+	while (1)
+	{
+		std::cout << "->";
+		std::string commend;
+		std::cin >> commend;
+
+		if (commend == "h" || commend == "help")
+		{
+			std::cout << "[img]: toggle img on off [now: ";
+			if (orbbec->drawImageEnabled()) std::cout << "enabled]" << std::endl;
+			else std::cout << "disabled]" << std::endl;
+
+			std::cout << "[rgb]: toggle rgb mode or ir mode [now: "; 
+			if (orbbec->IRenabled()) std::cout << "IR mode]" << std::endl; 
+			else std::cout << "RGB mode]" << std::endl;
+
+			std::cout << "[reg]: toggle registraion mode [now: ";
+			if (orbbec->regisrationEnabled()) std::cout << "enabled]" << std::endl; 
+			else std::cout << "disabled]" << std::endl;
+		}
+
+		if (commend == "img")
+		{
+			orbbec->enableDrawImage(!orbbec->drawImageEnabled());
+		}
+		
+		if (commend == "rgb" || commend == "ir")
+		{
+			/*orbbec->stop();
+			orbbec->enableIR(!orbbec->IRenabled());
+			for (int i = 0; i < orbbec->getNumOfCameras(); i++)
+				orbbec->openRGBorIR(i);
+			sensorThread = std::thread(&Orbbec::threadRun, orbbec);
+			sensorThread.join();*/
+		}
+
+		if (commend == "reg")
+		{
+			orbbec->enableRegistration(!orbbec->regisrationEnabled());
+		}
+
+		
+	}
 }

@@ -3,11 +3,13 @@
 #include <iostream>
 #include "opencv2\core.hpp"
 #include "opencv2\imgproc.hpp"
-
+#include "opencv2\highgui.hpp"
 
 Orbbec::Orbbec(RGBDcamera * data, IPC * ipc)
 	:m_pData(data), m_pIpc(ipc), num_of_cameras(0),
-	m_pDevice(nullptr), m_pStreamDepth(nullptr), m_pStreamRGBorIR(nullptr), m_pRGBDparam(nullptr), m_bIRon(false), m_bEnableRegistration(false)
+	m_pDevice(nullptr), m_pStreamDepth(nullptr), m_pStreamRGBorIR(nullptr), m_pRGBDparam(nullptr),
+	ref_cam_idx(0),
+	m_bEnableRegistration(false), m_bDrawImage(false), m_bIRon(false), m_bStopThread(false)
 {
 	
 }
@@ -112,59 +114,9 @@ bool Orbbec::initialize(std::string cam_order_path)
 		m_pDevice[i].open(list_of_devices[i].getUri());
 		printf("%c. %s->%s (VID : %d | PID : %d) is connected""at %s\r\n", 'a' + i, list_of_devices[i].getVendor(),
 			list_of_devices[i].getName(), list_of_devices[i].getUsbVendorId(), list_of_devices[i].getUsbProductId(), list_of_devices[i].getUri());
-
-		openni::Status rc;
-
-		if (!m_bIRon)
-		{
-			if (m_pDevice[i].getSensorInfo(openni::SENSOR_COLOR) != nullptr)
-			{
-				rc = m_pStreamRGBorIR[i].create(m_pDevice[i], openni::SENSOR_COLOR);
-				if (rc != openni::STATUS_OK)
-				{
-					printf("Couldn't create color stream\n%s\n", openni::OpenNI::getExtendedError());
-					return false;
-				}
-			}
-			openni::VideoMode mModeColor = m_pStreamRGBorIR[i].getVideoMode();
-			mModeColor.setResolution(nWidth, nHeight);
-			mModeColor.setFps(30);
-			mModeColor.setPixelFormat(openni::PIXEL_FORMAT_RGB888);
-			m_pStreamRGBorIR[i].setVideoMode(mModeColor);
-		}
-		else
-		{
-			if (m_pDevice[i].getSensorInfo(openni::SENSOR_IR) != nullptr)
-			{
-				rc = m_pStreamRGBorIR[i].create(m_pDevice[i], openni::SENSOR_IR);
-				if (rc != openni::STATUS_OK)
-				{
-					printf("Couldn't create ir stream\n%s\n", openni::OpenNI::getExtendedError());
-					return false;
-				}
-			}
-			openni::VideoMode mModeIR = m_pStreamRGBorIR[i].getVideoMode();
-			mModeIR.setResolution(nWidth, nHeight);
-			mModeIR.setFps(30);
-			mModeIR.setPixelFormat(openni::PIXEL_FORMAT_GRAY16);
-			m_pStreamRGBorIR[i].setVideoMode(mModeIR);
-		}
-		
-		if (m_pDevice[i].getSensorInfo(openni::SENSOR_DEPTH) != nullptr)
-		{
-			rc = m_pStreamDepth[i].create(m_pDevice[i], openni::SENSOR_DEPTH);
-			if (rc != openni::STATUS_OK)
-			{
-				printf("Couldn't create depth stream\n%s\n", openni::OpenNI::getExtendedError());
-				return false;
-			}
-		}		
-
-		openni::VideoMode mModeDepth;
-		mModeDepth.setResolution(nWidth, nHeight);
-		mModeDepth.setFps(30);
-		mModeDepth.setPixelFormat(openni::PIXEL_FORMAT_DEPTH_1_MM);
-		m_pStreamDepth[i].setVideoMode(mModeDepth);		
+				
+		openRGBorIR(i);
+		openDepth(i);	
 
 		//iMaxDepth[i] = m_pStreamDepth[i].getMaxPixelValue();
 
@@ -176,6 +128,80 @@ bool Orbbec::initialize(std::string cam_order_path)
 		m_pRegistrationMatrix[i] = new float[16];
 		m_pRGBDparam[i].get_depth2color_all_matrix(m_pRegistrationMatrix[i]);
 	}
+	return true;
+}
+
+bool Orbbec::openRGBorIR(int dev_idx)
+{
+	this->stopRGBorIRstream(dev_idx);
+
+	openni::Status rc;
+	int nWidth = 480, nHeight = 640;
+	if (!m_bIRon)
+	{
+		if (m_pDevice[dev_idx].getSensorInfo(openni::SENSOR_COLOR) != nullptr)
+		{
+			rc = m_pStreamRGBorIR[dev_idx].create(m_pDevice[dev_idx], openni::SENSOR_COLOR);
+			if (rc != openni::STATUS_OK)
+			{
+				printf("Couldn't create color stream\n%s\n", openni::OpenNI::getExtendedError());
+				return false;
+			}
+		}
+		openni::VideoMode mModeColor = m_pStreamRGBorIR[dev_idx].getVideoMode();
+		mModeColor.setResolution(nWidth, nHeight);
+		mModeColor.setFps(30);
+		mModeColor.setPixelFormat(openni::PIXEL_FORMAT_RGB888);
+		m_pStreamRGBorIR[dev_idx].setVideoMode(mModeColor);
+	}
+	else
+	{
+		if (m_pDevice[dev_idx].getSensorInfo(openni::SENSOR_IR) != nullptr)
+		{
+			rc = m_pStreamRGBorIR[dev_idx].create(m_pDevice[dev_idx], openni::SENSOR_IR);
+			if (rc != openni::STATUS_OK)
+			{
+				printf("Couldn't create ir stream\n%s\n", openni::OpenNI::getExtendedError());
+				return false;
+			}
+		}
+		openni::VideoMode mModeIR = m_pStreamRGBorIR[dev_idx].getVideoMode();
+		mModeIR.setResolution(nWidth, nHeight);
+		mModeIR.setFps(30);
+		mModeIR.setPixelFormat(openni::PIXEL_FORMAT_GRAY16);
+		m_pStreamRGBorIR[dev_idx].setVideoMode(mModeIR);
+	}
+
+	this->startRGBorIRstream(dev_idx);
+
+	return true;
+}
+
+bool Orbbec::openDepth(int dev_idx)
+{
+	this->stopDepthstream(dev_idx);
+
+	openni::Status rc;
+	int nWidth = 480, nHeight = 640;
+
+	if (m_pDevice[dev_idx].getSensorInfo(openni::SENSOR_DEPTH) != nullptr)
+	{
+		rc = m_pStreamDepth[dev_idx].create(m_pDevice[dev_idx], openni::SENSOR_DEPTH);
+		if (rc != openni::STATUS_OK)
+		{
+			printf("Couldn't create depth stream\n%s\n", openni::OpenNI::getExtendedError());
+			return false;
+		}
+	}
+	openni::VideoMode mModeDepth;
+	mModeDepth.setResolution(nWidth, nHeight);
+	mModeDepth.setFps(30);
+	mModeDepth.setPixelFormat(openni::PIXEL_FORMAT_DEPTH_1_MM);
+	m_pStreamDepth[dev_idx].setVideoMode(mModeDepth);
+
+
+	this->startDepthstream(dev_idx);
+
 	return true;
 }
 
@@ -193,7 +219,8 @@ void Orbbec::getRGBorIR(int dev_idx)
 		printf("Read failed!\n%s\n", openni::OpenNI::getExtendedError());
 		return;
 	}
-	if(!m_bIRon)
+
+	if(!m_bIRon)		// rgb mode
 	{
 		const cv::Mat rgbImage(m_pData->colorHeight, m_pData->colorWidth, CV_8UC3,
 			(uchar*)frame_rgb_ir.getData());
@@ -201,12 +228,38 @@ void Orbbec::getRGBorIR(int dev_idx)
 		cv::Mat bgrImage(m_pData->colorHeight, m_pData->colorWidth, CV_8UC3,
 			m_pData->colorData[dev_idx]);
 		cv::cvtColor(rgbImage, bgrImage, CV_RGB2BGR);
+
+		if (m_bDrawImage)
+		{
+			cv::Mat canvas;
+			cv::imshow("rgb_" + std::string(m_pData->camera_order[dev_idx]), bgrImage);
+			cv::destroyWindow("ir_" + std::string(m_pData->camera_order[dev_idx]));
+		}
+		else
+		{
+			cv::destroyWindow("rgb_" + std::string(m_pData->camera_order[dev_idx]));
+		}
 	}
 	else
 	{
+		// ir mode
 		const cv::Mat irImage(480, 640, CV_16UC1, (uint16_t*)frame_rgb_ir.getData());
 		cv::Mat flipedIRimage(480, 640, CV_16UC1, m_pData->irData[dev_idx]);
 		cv::flip(irImage, flipedIRimage, 1);
+
+		if (m_bDrawImage)
+		{
+			cv::Mat canvas;
+			double min, max;
+			cv::minMaxLoc(flipedIRimage, &min, &max);
+			flipedIRimage.convertTo(canvas, CV_8UC1, 1/max*255, 0);
+			cv::imshow("ir_" + std::string(m_pData->camera_order[dev_idx]), canvas);
+			cv::destroyWindow("rgb_" + std::string(m_pData->camera_order[dev_idx]));
+		}
+		else
+		{
+			cv::destroyWindow("ir_" + std::string(m_pData->camera_order[dev_idx]));
+		}
 	}
 }
 
@@ -259,9 +312,19 @@ void Orbbec::getDepth(int dev_idx)
 		else
 			newDepth = depthImage.clone();
 		memcpy(m_pData->depthData[dev_idx], newDepth.data, sizeof(ushort) * m_pData->colorHeight * m_pData->colorWidth);
+
+		if (m_bDrawImage)
+		{
+			cv::Mat canvas;
+			newDepth.convertTo(canvas, CV_8UC1, 0.05, -25);
+			cv::imshow("depth_" + std::string(m_pData->camera_order[dev_idx]), canvas);
+		}
+		else
+		{
+			cv::destroyWindow("depth_" + std::string(m_pData->camera_order[dev_idx]));
+		}
 	}
 }
-
 
 bool Orbbec::getData()
 {
@@ -273,6 +336,8 @@ bool Orbbec::getData()
 		getRGBorIR(i);
 		getDepth(i);
 	}
+	if (m_bDrawImage)
+		cv::waitKey(10);
 	return stream_is_updated;
 }
 
@@ -365,11 +430,21 @@ bool Orbbec::regisrationEnabled() const
 	return m_bEnableRegistration;
 }
 
+void Orbbec::enableIR(const bool flag)
+{
+	this->m_bIRon = flag;
+}
+
+bool Orbbec::IRenabled() const
+{
+	return this->m_bIRon;
+}
+
 void Orbbec::threadRun()
 {
 	function_cummunication *state = m_pIpc->get_state("Orbbec.exe");
 
-	while (1)
+	while (!m_bStopThread)
 	{
 		getData();
 
@@ -425,4 +500,28 @@ void Orbbec::writeCalibrationData(std::string path)
 		cam_order.push_back(std::to_string(i));
 		writeParametersYaml(std::string(path + "\\Orbbec_calibration_" + cam_order[i] + ".yml"), &this->m_pRGBDparam[i]);
 	}
+}
+void Orbbec::enableDrawImage(const bool flag)
+{
+	this->m_bDrawImage = flag;
+}
+
+bool Orbbec::drawImageEnabled() const
+{
+	return this->m_bDrawImage;
+}
+
+int Orbbec::getNumOfCameras() const
+{
+	return this->num_of_cameras;
+}
+
+void Orbbec::stop()
+{
+	m_bStopThread = true;
+}
+
+void Orbbec::start()
+{
+	m_bStopThread = false;
 }
