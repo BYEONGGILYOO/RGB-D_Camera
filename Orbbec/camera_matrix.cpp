@@ -27,6 +27,17 @@ bool _rgbd_extrinsics_::isIdentity() const
 {
 	return (rotation[0] == 1) && (rotation[4] == 1) && (translation[0] == 0) && (translation[1] == 0) && (translation[2] == 0);
 }
+_rgbd_parameters_::_rgbd_parameters_()
+{
+}
+
+_rgbd_parameters_::_rgbd_parameters_(const _rgbd_parameters_& rparam)
+{
+	this->cam_id = rparam.cam_id;
+	this->color_intrinsic = rparam.color_intrinsic;
+	this->depth_intrinsic = rparam.depth_intrinsic;
+	this->depth_to_color = rparam.depth_to_color;
+}
 
 _camera_raw_data_::_camera_raw_data_()
 {
@@ -37,6 +48,8 @@ _camera_raw_data_::_camera_raw_data_(const _camera_raw_data_& crd)
 {
 	this->colorData = crd.colorData;
 	this->depthData = crd.depthData;
+	this->colorTime = crd.colorTime;
+	this->depthTime = crd.depthTime;
 	this->rgbdParam = crd.rgbdParam;
 }
 
@@ -147,10 +160,11 @@ void calculate_depth_to_color_matrix(const struct _rgbd_parameters_* data, float
 	transform_matrix[14] = dst(3, 2);
 	transform_matrix[15] = dst(3, 3);
 
+	std::cout << data->cam_id << std::endl;
 	std::cout << "depth_K_Mat" << std::endl << depthK << std::endl;
 	std::cout << "color_K_Mat" << std::endl << colorK << std::endl;
 	std::cout << "depth2color_Mat" << std::endl << d2c << std::endl;
-	std::cout << "All_Mat" << std::endl << dst << std::endl;
+	std::cout << "All_Mat" << std::endl << dst << std::endl << std::endl;
 }
 
 void readParameterYaml(std::string full_path, struct _rgbd_parameters_ * data)
@@ -161,7 +175,7 @@ void readParameterYaml(std::string full_path, struct _rgbd_parameters_ * data)
 		return;
 	}
 
-	fs["cam_name"] >> data->cam_name;
+	fs["cam_name"] >> data->cam_id;
 	cv::Mat k, coeffs, R, t;
 	fs["rgb_intrinsics"] >> k;
 	data->color_intrinsic.fx = k.at<float>(0, 0); data->color_intrinsic.ppx = k.at<float>(0, 2);
@@ -195,7 +209,7 @@ void writeParametersYaml(std::string full_path, const struct _rgbd_parameters_ *
 		return;
 	}
 
-	fs << "cam_name" << data->cam_name;
+	fs << "cam_name" << data->cam_id;
 	cv::Mat k = cv::Mat::eye(3, 3, CV_32FC1);
 	k.at<float>(0, 0) = data->color_intrinsic.fx; k.at<float>(0, 2) = data->color_intrinsic.ppx;
 	k.at<float>(1, 1) = data->color_intrinsic.fy; k.at<float>(1, 2) = data->color_intrinsic.ppy;

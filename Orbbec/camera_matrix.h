@@ -89,10 +89,13 @@ typedef struct _rgbd_extrinsics_ : Extrinsics
 
 typedef struct _rgbd_parameters_
 {
-	std::string cam_name;
+	std::string cam_id;
 	RGBD_Intrinsics color_intrinsic;
 	RGBD_Intrinsics depth_intrinsic;
 	RGBD_Extrinsics depth_to_color;
+
+	_rgbd_parameters_();
+	_rgbd_parameters_(const _rgbd_parameters_& rparam);
 	inline void get_depth2color_all_matrix(float* dst) const
 	{
 		calculate_depth_to_color_matrix(this, dst);
@@ -101,8 +104,8 @@ typedef struct _rgbd_parameters_
 
 typedef struct _camera_raw_data_
 {
-	std::pair<int, std::string> cam_id;
 	std::vector<cv::Mat> colorData, depthData;
+	std::vector<double> colorTime, depthTime;
 	_rgbd_parameters_ rgbdParam;
 
 	_camera_raw_data_();

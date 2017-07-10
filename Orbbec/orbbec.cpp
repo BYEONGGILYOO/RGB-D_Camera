@@ -7,7 +7,7 @@
 
 Orbbec::Orbbec(RGBDcamera * data, IPC * ipc)
 	:m_pData(data), m_pIpc(ipc), num_of_cameras(0),
-	m_pDevice(nullptr), m_pStreamDepth(nullptr), m_pStreamRGBorIR(nullptr), m_pRGBDparam(nullptr), m_bIRon(false)
+	m_pDevice(nullptr), m_pStreamDepth(nullptr), m_pStreamRGBorIR(nullptr), m_pRGBDparam(nullptr), m_bIRon(false), m_bEnableRegistration(false)
 {
 	
 }
@@ -29,6 +29,13 @@ Orbbec::~Orbbec()
 	if (m_pRGBDparam != nullptr)
 		delete[] m_pRGBDparam;
 	m_pRGBDparam = nullptr;
+
+	for (int i = 0; i < num_of_cameras; i++)
+	{
+		if (m_pRegistrationMatrix[i] != nullptr)
+			delete[] m_pRegistrationMatrix[i];
+	}
+	delete[] m_pRegistrationMatrix;
 }
 
 bool Orbbec::initialize(std::string cam_order_path)
@@ -51,6 +58,8 @@ bool Orbbec::initialize(std::string cam_order_path)
 
 	m_pRGBDparam = new RGBD_Parameters[num_of_cameras];
 
+	m_pRegistrationMatrix = new float*[num_of_cameras];
+
 	// object init
 	if (num_of_cameras > 1) {
 		readCalibrationData(cam_order_path);
@@ -61,7 +70,7 @@ bool Orbbec::initialize(std::string cam_order_path)
 			std::cout << cam_order[i] << ", ";
 		std::cout << std::endl;
 	}
-	else if (num_of_cameras == 1)	// for test
+	else if (num_of_cameras == 1)	// for test only one camera
 	{
 		cam_order.push_back("front");
 		readParameterYaml(cam_order_path + "orbbec_calibration_" + cam_order[0] + ".yml", &this->m_pRGBDparam[0]);
@@ -81,13 +90,12 @@ bool Orbbec::initialize(std::string cam_order_path)
 
 
 		cv::Mat mat_tmp = cv::Mat(3, 3, CV_32FC1, m_pRGBDparam[0].depth_to_color.rotation).clone();
-		//mat_tmp = mat_tmp.inv();
 		memcpy(m_pData->depth_to_color_R[0], mat_tmp.data, sizeof(float) * 9);
 		mat_tmp = cv::Mat(3, 1, CV_32FC1, m_pRGBDparam[0].depth_to_color.translation).clone();
-		//mat_tmp = -mat_tmp;// *0.001f;
 		memcpy(m_pData->depth_to_color_tvec[0], mat_tmp.data, sizeof(float) * 3);
 	}
-	//
+
+	// set the parameters
 	m_pData->num_of_senseor = num_of_cameras;
 	m_pData->ref_cam_idx = ref_cam_idx;
 
@@ -98,6 +106,7 @@ bool Orbbec::initialize(std::string cam_order_path)
 	m_pData->depthHeight = nHeight;
 	m_pData->depthWidth = nWidth;
 
+	// open the video
 	for (int i = 0; i < num_of_cameras; i++)
 	{
 		m_pDevice[i].open(list_of_devices[i].getUri());
@@ -163,6 +172,9 @@ bool Orbbec::initialize(std::string cam_order_path)
 		m_pRGBDparam[i].color_intrinsic.height = nHeight;
 		m_pRGBDparam[i].depth_intrinsic.width = nWidth;
 		m_pRGBDparam[i].depth_intrinsic.height = nHeight;
+
+		m_pRegistrationMatrix[i] = new float[16];
+		m_pRGBDparam[i].get_depth2color_all_matrix(m_pRegistrationMatrix[i]);
 	}
 	return true;
 }
@@ -209,14 +221,44 @@ void Orbbec::getDepth(int dev_idx)
 
 	if (rc == openni::STATUS_OK && frame_depth.isValid())
 	{
-		if (frame_depth.getHeight() != m_pData->depthHeight || frame_depth.getWidth() != m_pData->depthWidth) {
-			throw std::runtime_error("resolution is incorrect");
-			return;
-		}
 		const cv::Mat depthImage(m_pData->depthHeight, m_pData->depthWidth, CV_16UC1,
 			(ushort*)frame_depth.getData());
 		cv::flip(depthImage, depthImage, 1);
-		memcpy(m_pData->depthData[dev_idx], frame_depth.getData(), sizeof(ushort)*m_pData->depthHeight*m_pData->depthWidth);
+
+		cv::Mat newDepth(m_pData->colorHeight, m_pData->colorWidth, CV_16UC1, cv::Scalar(0));
+		if (m_bEnableRegistration)
+		{
+			for (int y = 0; y < depthImage.rows; y++)
+			{
+				for (int x = 0; x < depthImage.cols; x++)
+				{
+					uint16_t depth_val = (uint16_t)depthImage.at<ushort>(y, x);
+					float depth_val_float = (float)depth_val;
+
+					// method 1 : 13 ~ 14 milisec
+					/*float2 depth_pixel = { (float)x, (float)y };
+					float3 depth_point = m_pRGBDparam[dev_idx].depth_intrinsic.deproject(depth_pixel, depth_val_float);
+					float3 color_point = m_pRGBDparam[dev_idx].depth_to_color.transform(depth_point);
+					float2 color_pixel = m_pRGBDparam[dev_idx].color_intrinsic.project(color_point);
+
+					const int cx = (int)std::round(color_pixel.x), cy = (int)std::round(color_pixel.y);*/
+
+					// mehtod 2 : 9 ~ 10 milisec
+					const int cx = (int)std::round(m_pRegistrationMatrix[dev_idx][0] * (double)x + m_pRegistrationMatrix[dev_idx][1] * (double)y + m_pRegistrationMatrix[dev_idx][2] + m_pRegistrationMatrix[dev_idx][3] / (double)depth_val_float);
+					const int cy = (int)std::round(m_pRegistrationMatrix[dev_idx][4] * (double)x + m_pRegistrationMatrix[dev_idx][5] * (double)y + m_pRegistrationMatrix[dev_idx][6] + m_pRegistrationMatrix[dev_idx][7] / (double)depth_val_float);
+
+					if (cx < 0 || cy < 0 || cx >= m_pRGBDparam[dev_idx].color_intrinsic.width || cy >= m_pRGBDparam[dev_idx].color_intrinsic.height) {
+						
+						continue;
+					}
+					uint16_t * val = (uint16_t*)newDepth.ptr<uint16_t>(cy, cx);
+					*val = depth_val;
+				}
+			}
+		}
+		else
+			newDepth = depthImage.clone();
+		memcpy(m_pData->depthData[dev_idx], newDepth.data, sizeof(ushort) * m_pData->colorHeight * m_pData->colorWidth);
 	}
 }
 
@@ -311,6 +353,16 @@ void Orbbec::getDepthHistogram(cv::Mat & src, cv::Mat & dst)
 		}
 	}
 	dst = depthHist;
+}
+
+void Orbbec::enableRegistration(const bool flag)
+{
+	m_bEnableRegistration = flag;
+}
+
+bool Orbbec::regisrationEnabled() const
+{
+	return m_bEnableRegistration;
 }
 
 void Orbbec::threadRun()

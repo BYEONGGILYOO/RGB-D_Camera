@@ -21,7 +21,7 @@ int main(int argc, char** argv)
 	//orbbec.m_bIRon = true;
 	orbbec.initialize("..\\data\\");
 	int num_of_sensor = rgbdData->num_of_senseor;
-	
+	orbbec.enableRegistration(true);
 	for (int i = 0; i < num_of_sensor; i++)
 	{
 		orbbec.startDepthstream(i);
@@ -180,7 +180,7 @@ int main(int argc, char** argv)
 		}
 	});
 
-	if (1)
+	if (0)
 	{
 		std::thread registration([&]()
 		{
@@ -231,7 +231,7 @@ int main(int argc, char** argv)
 					memcpy(depth[i].data, data2->depthData[i], sizeof(ushort) * data2->depthHeight * data2->depthWidth);
 
 					auto start = std::chrono::high_resolution_clock::now();
-					for (int y = 0; y < data2->depthHeight; y++)
+					/*for (int y = 0; y < data2->depthHeight; y++)
 					{
 						for (int x = 0; x < data2->depthWidth; x++)
 						{
@@ -239,12 +239,12 @@ int main(int argc, char** argv)
 							float depth_val_float = (float)depth_val;
 
 							//// deproject - transform - project --> 13~14 miliseconds
-							/*float2 depth_pixel = { (float)x, (float)y };
-							float3 depth_point = rgbd_param[i].depth_intrinsic.deproject(depth_pixel, depth_val_float);
-							float3 color_point = rgbd_param[i].depth_to_color.transform(depth_point);
-							float2 color_pixel = rgbd_param[i].color_intrinsic.project(color_point);
+							//float2 depth_pixel = { (float)x, (float)y };
+							//float3 depth_point = rgbd_param[i].depth_intrinsic.deproject(depth_pixel, depth_val_float);
+							//float3 color_point = rgbd_param[i].depth_to_color.transform(depth_point);
+							//float2 color_pixel = rgbd_param[i].color_intrinsic.project(color_point);
 
-							const int cx = (int)std::round(color_pixel.x), cy = (int)std::round(color_pixel.y);*/
+							//const int cx = (int)std::round(color_pixel.x), cy = (int)std::round(color_pixel.y);
 
 							//// all_mat product 9~10 miliseconds
 							float* mat = (float*)rt[i].data;
@@ -262,7 +262,7 @@ int main(int argc, char** argv)
 								depth2color[i].at<cv::Vec3b>(y, x) = img[i].at<cv::Vec3b>(cy, cx);
 							}
 						}
-					}
+					}*/
 					auto elapsed = std::chrono::high_resolution_clock::now() - start;
 					time += std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
 
@@ -278,7 +278,7 @@ int main(int argc, char** argv)
 
 					cv::Mat registerMat;
 					cv::Mat caliDepthHistogram(480, 640, CV_16UC1);
-					orbbec.getDepthHistogram(newDepth[i], caliDepthHistogram);
+					orbbec.getDepthHistogram(depth[i], caliDepthHistogram);
 					cv::addWeighted(caliDepthHistogram, (double)(5 / 10.0), img[i], (double)(5 / 10.0), 0.5, registerMat);
 					cv::imshow("registerMat " + std::string(data2->camera_order[i]), registerMat);
 				}

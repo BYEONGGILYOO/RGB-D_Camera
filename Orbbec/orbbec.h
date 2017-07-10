@@ -31,6 +31,8 @@ public:
 	void stopDepthstream(const int dev_idx) const;
 
 	void getDepthHistogram(cv::Mat &src, cv::Mat &dst);
+	void enableRegistration(const bool flag = false);
+	bool regisrationEnabled() const;
 private:
 	RGBDcamera *m_pData;
 	IPC *m_pIpc;
@@ -40,5 +42,7 @@ private:
 	openni::VideoStream *m_pStreamDepth, *m_pStreamRGBorIR;
 	RGBD_Parameters *m_pRGBDparam;
 	std::vector<std::string> cam_order;
+	bool m_bEnableRegistration;
+	float **m_pRegistrationMatrix;
 };
 
