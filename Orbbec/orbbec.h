@@ -40,6 +40,9 @@ public:
 	void enableDrawImage(const bool flag = false);
 	bool drawImageEnabled() const;
 	int getNumOfCameras() const;
+	void enableOverlap(const bool flag = false);
+	bool overlapEnabled() const;
+
 	void stop();
 	void start();
 private:
@@ -65,5 +68,6 @@ private:
 	bool m_bDrawImage;
 	bool m_bIRon;
 	bool m_bStopThread;
+	bool m_bOverlap;
 };
 

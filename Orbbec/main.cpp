@@ -150,37 +150,40 @@ int main(int argc, char** argv)
 		
 	});*/
 
-	std::thread takePictureForCalibration([&]() {
-		IPC ipc("takePictureForCalibration.exe");
-		RGBDcamera *data2 = ipc.connect<RGBDcamera>("Orbbec.exe");		
+	if (0) {
+		std::thread takePictureForCalibration([&]() {
+			IPC ipc("takePictureForCalibration.exe");
+			RGBDcamera *data2 = ipc.connect<RGBDcamera>("Orbbec.exe");
 
-		cv::Mat img1(data2->colorHeight, data2->colorWidth, CV_8UC3);
-		cv::Mat img2(data2->colorHeight, data2->colorWidth, CV_8UC3);
-		cv::Mat img3(data2->colorHeight, data2->colorWidth, CV_8UC3);
+			cv::Mat img1(data2->colorHeight, data2->colorWidth, CV_8UC3);
+			cv::Mat img2(data2->colorHeight, data2->colorWidth, CV_8UC3);
+			cv::Mat img3(data2->colorHeight, data2->colorWidth, CV_8UC3);
 
-		cv::Mat ir1(data2->depthHeight, data2->depthWidth, CV_16UC1);
-		cv::Mat ir2(data2->depthHeight, data2->depthWidth, CV_16UC1);
-		cv::Mat ir3(data2->depthHeight, data2->depthWidth, CV_16UC1);
+			cv::Mat ir1(data2->depthHeight, data2->depthWidth, CV_16UC1);
+			cv::Mat ir2(data2->depthHeight, data2->depthWidth, CV_16UC1);
+			cv::Mat ir3(data2->depthHeight, data2->depthWidth, CV_16UC1);
 
-		while (1)
-		{
-			if (!orbbec.IRenabled())
+			while (1)
 			{
-				memcpy(img1.data, data2->colorData[0], sizeof(uchar)*data2->colorHeight*data2->colorWidth * 3);
-				memcpy(img2.data, data2->colorData[1], sizeof(uchar)*data2->colorHeight*data2->colorWidth * 3);
-				memcpy(img3.data, data2->colorData[2], sizeof(uchar)*data2->colorHeight*data2->colorWidth * 3);
-			}
-			else
-			{
-				memcpy(ir1.data, data2->irData[0], sizeof(ushort)*data2->depthHeight*data2->depthWidth);
-				memcpy(ir2.data, data2->irData[1], sizeof(ushort)*data2->depthHeight*data2->depthWidth);
-				memcpy(ir3.data, data2->irData[2], sizeof(ushort)*data2->depthHeight*data2->depthWidth);
-			}
-			
+				if (!orbbec.IRenabled())
+				{
+					memcpy(img1.data, data2->colorData[0], sizeof(uchar)*data2->colorHeight*data2->colorWidth * 3);
+					memcpy(img2.data, data2->colorData[1], sizeof(uchar)*data2->colorHeight*data2->colorWidth * 3);
+					memcpy(img3.data, data2->colorData[2], sizeof(uchar)*data2->colorHeight*data2->colorWidth * 3);
+				}
+				else
+				{
+					memcpy(ir1.data, data2->irData[0], sizeof(ushort)*data2->depthHeight*data2->depthWidth);
+					memcpy(ir2.data, data2->irData[1], sizeof(ushort)*data2->depthHeight*data2->depthWidth);
+					memcpy(ir3.data, data2->irData[2], sizeof(ushort)*data2->depthHeight*data2->depthWidth);
+				}
 
-			cv::waitKey(10);
-		}
-	});
+
+				cv::waitKey(10);
+			}
+		});
+		takePictureForCalibration.join();
+	}
 
 	if (0)
 	{
@@ -286,7 +289,7 @@ int main(int argc, char** argv)
 				}
 				cv::waitKey(10);
 				time /= 3.0;
-				std::cout << time << std::endl;
+				//std::cout << time << std::endl;
 			}
 
 			delete[] rt;
@@ -304,7 +307,7 @@ int main(int argc, char** argv)
 	std::thread commendThread(commend_thread, &orbbec);
 	sensorThread.join();
 	//forTest.join();
-	takePictureForCalibration.join();	
+		
 	commendThread.join();
 
 	for (int i = 0; i < num_of_sensor; i++)
@@ -336,6 +339,10 @@ void commend_thread(Orbbec* orbbec)
 			std::cout << "[reg]: toggle registraion mode [now: ";
 			if (orbbec->regisrationEnabled()) std::cout << "enabled]" << std::endl; 
 			else std::cout << "disabled]" << std::endl;
+
+			std::cout << "[overlap]: toggle draw rgb and depth overlap [now: ";
+			if (orbbec->overlapEnabled())std::cout << "enabled]" << std::endl;
+			else std::cout << "disabled]" << std::endl;
 		}
 
 		if (commend == "img")
@@ -353,11 +360,15 @@ void commend_thread(Orbbec* orbbec)
 			sensorThread.join();*/
 		}
 
-		if (commend == "reg")
+		if (commend == "reg" || commend == "r")
 		{
 			orbbec->enableRegistration(!orbbec->regisrationEnabled());
 		}
 
+		if (commend == "overlap" || commend == "o")
+		{
+			orbbec->enableOverlap(!orbbec->overlapEnabled());
+		}
 		
 	}
 }

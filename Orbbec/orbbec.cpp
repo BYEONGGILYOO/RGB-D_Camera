@@ -9,7 +9,7 @@ Orbbec::Orbbec(RGBDcamera * data, IPC * ipc)
 	:m_pData(data), m_pIpc(ipc), num_of_cameras(0),
 	m_pDevice(nullptr), m_pStreamDepth(nullptr), m_pStreamRGBorIR(nullptr), m_pRGBDparam(nullptr),
 	ref_cam_idx(0),
-	m_bEnableRegistration(false), m_bDrawImage(false), m_bIRon(false), m_bStopThread(false)
+	m_bEnableRegistration(false), m_bDrawImage(false), m_bIRon(false), m_bStopThread(false), m_bOverlap(false)
 {
 	
 }
@@ -335,6 +335,19 @@ bool Orbbec::getData()
 		stream_is_updated = true;
 		getRGBorIR(i);
 		getDepth(i);
+
+		if (m_bOverlap) {
+			cv::Mat canvas;
+			cv::Mat depth(m_pData->depthHeight, m_pData->depthWidth, CV_16UC1, m_pData->depthData[i]);
+			cv::Mat color(m_pData->colorHeight, m_pData->colorWidth, CV_8UC3, m_pData->colorData[i]);
+			cv::Mat caliDepthHistogram(m_pData->colorHeight, m_pData->colorWidth, CV_16UC1);
+			getDepthHistogram(depth, caliDepthHistogram);
+			cv::addWeighted(caliDepthHistogram, (double)(5 / 10.0), color, (double)(5 / 10.0), 0.5, canvas);
+			cv::imshow("overlap img " + std::string(m_pData->camera_order[i]), canvas);
+			cv::waitKey(10);
+		}
+		else
+			cv::destroyWindow("overlap img " + std::string(m_pData->camera_order[i]));
 	}
 	if (m_bDrawImage)
 		cv::waitKey(10);
@@ -447,7 +460,7 @@ void Orbbec::threadRun()
 	while (!m_bStopThread)
 	{
 		getData();
-
+		Sleep(70);
 		if (m_pIpc->exit())
 		{
 			Sleep(30);
@@ -479,17 +492,9 @@ void Orbbec::readCalibrationData(std::string path)
 
 		
 		cv::Mat mat_tmp = cv::Mat(3, 3, CV_32FC1, m_pRGBDparam[i].depth_to_color.rotation).clone();
-		//mat_tmp = mat_tmp.inv();
 		memcpy(m_pData->depth_to_color_R[i], mat_tmp.data, sizeof(float) * 9);
 		mat_tmp = cv::Mat(3, 1, CV_32FC1, m_pRGBDparam[i].depth_to_color.translation).clone();
-		//mat_tmp = -mat_tmp;// *0.001f;
 		memcpy(m_pData->depth_to_color_tvec[i], mat_tmp.data, sizeof(float) * 3);
-		
-		//memcpy(m_pData->depth_to_color_R, m_pRGBDparam[i].depth_to_color.rotation, sizeof(float) * 9);
-		//cv::Mat mat_tmp = cv::Mat(3, 1, CV_32FC1, m_pRGBDparam[i].depth_to_color.translation).clone();
-		//mat_tmp = -mat_tmp;// *0.001f;
-		//memcpy(m_pData->depth_to_color_tvec, mat_tmp.data, sizeof(float) * 3);
-		////memcpy(m_pData->depth_to_color_tvec, m_pRGBDparam[i].depth_to_color.translation, sizeof(float) * 3);
 	}
 }
 
@@ -524,4 +529,14 @@ void Orbbec::stop()
 void Orbbec::start()
 {
 	m_bStopThread = false;
+}
+
+void Orbbec::enableOverlap(const bool flag)
+{
+	this->m_bOverlap = flag;
+}
+
+bool Orbbec::overlapEnabled() const
+{
+	return this->m_bOverlap;
 }

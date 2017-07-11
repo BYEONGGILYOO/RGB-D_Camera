@@ -5,7 +5,7 @@ rgb_intrinsics: !!opencv-matrix
    rows: 3
    cols: 3
    dt: f
-   data: [ 574.409, 0., 324.104, 0., 535.945, 228.069, 0., 0., 1. ]
+   data: [ 551.057, 0., 336.783, 0., 513.299, 231.687, 0., 0., 1. ]
 rgb_distortion: !!opencv-matrix
    rows: 1
    cols: 5
@@ -15,7 +15,7 @@ depth_intrinsics: !!opencv-matrix
    rows: 3
    cols: 3
    dt: f
-   data: [ 642.012, 0., 331.952, 0., 598.769, 239.414, 0., 0., 1. ]
+   data: [ 604.517, 0., 318.166, 0., 563.159, 247.6, 0., 0., 1. ]
 depth_distortion: !!opencv-matrix
    rows: 1
    cols: 5
@@ -25,9 +25,9 @@ depth_to_color_Rot: !!opencv-matrix
    rows: 3
    cols: 3
    dt: f
-   data: [  0.999968,  0.00209285,  0.00766018, -0.00213879, 0.99998, 0.0059939, -0.00764748, -0.00601009, 0.999953]
+   data: [ 0.999923, 0.00262092, -0.0121159, -0.00273353, 0.999953, -0.00928696, 0.012091, 0.00931936, 0.999883 ]
 depth_to_color_tvec: !!opencv-matrix
    rows: 3
    cols: 1
    dt: f
-   data: [ -24.6887, -0.0219058, -0.646738 ]
+   data: [ -21.2737, 2.45079, 9.73104 ]

@@ -290,5 +290,4 @@ __pycache__/
 # include file
 include/
 # 
-!include/camera_matrix.h
 !include/functions.h
