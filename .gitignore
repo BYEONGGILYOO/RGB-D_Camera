@@ -288,7 +288,7 @@ __pycache__/
 *.xsd.cs
 
 # include file
-include/
-# 
-!functions.h
+include/**
+!include/functions.h
+
 !data/*.yml
