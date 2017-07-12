@@ -291,3 +291,4 @@ __pycache__/
 include/
 # 
 !include/functions.h
+!data/*.yml
