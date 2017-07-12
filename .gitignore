@@ -290,5 +290,5 @@ __pycache__/
 # include file
 include/
 # 
-!include/functions.h
+!functions.h
 !data/*.yml
