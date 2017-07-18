@@ -90,11 +90,8 @@ bool Orbbec::initialize(std::string cam_order_path)
 		m_pData->depthK[0][3] = m_pRGBDparam[0].depth_intrinsic.fy;
 		memcpy(m_pData->depthCoeffs[0], m_pRGBDparam[0].depth_intrinsic.coeffs, sizeof(float) * 5);
 
-
-		cv::Mat mat_tmp = cv::Mat(3, 3, CV_32FC1, m_pRGBDparam[0].depth_to_color.rotation).clone();
-		memcpy(m_pData->depth_to_color_R[0], mat_tmp.data, sizeof(float) * 9);
-		mat_tmp = cv::Mat(3, 1, CV_32FC1, m_pRGBDparam[0].depth_to_color.translation).clone();
-		memcpy(m_pData->depth_to_color_tvec[0], mat_tmp.data, sizeof(float) * 3);
+		memcpy(m_pData->depth_to_color_R[0], m_pRGBDparam[0].depth_to_color.rotation, sizeof(float) * 9);
+		memcpy(m_pData->depth_to_color_tvec[0], m_pRGBDparam[0].depth_to_color.translation, sizeof(float) * 3);
 	}
 
 	// set the parameters
@@ -491,10 +488,8 @@ void Orbbec::readCalibrationData(std::string path)
 		memcpy(m_pData->depthCoeffs[i], m_pRGBDparam[i].depth_intrinsic.coeffs, sizeof(float) * 5);
 
 		
-		cv::Mat mat_tmp = cv::Mat(3, 3, CV_32FC1, m_pRGBDparam[i].depth_to_color.rotation).clone();
-		memcpy(m_pData->depth_to_color_R[i], mat_tmp.data, sizeof(float) * 9);
-		mat_tmp = cv::Mat(3, 1, CV_32FC1, m_pRGBDparam[i].depth_to_color.translation).clone();
-		memcpy(m_pData->depth_to_color_tvec[i], mat_tmp.data, sizeof(float) * 3);
+		memcpy(m_pData->depth_to_color_R[i], m_pRGBDparam[i].depth_to_color.rotation, sizeof(float) * 9);
+		memcpy(m_pData->depth_to_color_tvec[i], m_pRGBDparam[i].depth_to_color.translation, sizeof(float) * 3);
 	}
 }
 

@@ -568,7 +568,13 @@ struct ExtrinsicCalibration
 
 	ExtrinsicCalibration()
 		:bStart(false), argc(0), isCalibrated(false)
-	{}
+	{
+		memset(argv, 0, sizeof(char) * 100 * 50);
+		memset(cam_to_cam_R, 0, sizeof(double) * 3 * 9);
+		memset(cam_to_cam_tvec, 0, sizeof(double) * 3 * 3);
+		memset(tot_error, 0, sizeof(double) * 3);
+		memset(avr_error, 0, sizeof(double) * 3);
+	}
 };
 
 struct GroundDetectionData
@@ -576,14 +582,45 @@ struct GroundDetectionData
 	// input
 	char camera_name[50];	// realsense, orbbec
 	bool bStart;
-	int iterator;		// 아직 미구현
+	int iterator;
 
 	// output
 	double R[9];
 	double tvec[3];
+	bool isDone;
+
+	GroundDetectionData()
+		:bStart(false), iterator(20), isDone(false)
+	{
+		memset(camera_name, 0, sizeof(char) * 50);
+		memset(R, 0, sizeof(double) * 9);
+		memset(tvec, 0, sizeof(double) * 3);
+	}
 };
 struct MultipleCalibration
+	:public ExtrinsicCalibration,
+	public GroundDetectionData
 {
+	void setExtrinsic(const ExtrinsicCalibration& ec)
+	{
+		this->ExtrinsicCalibration::bStart = ec.bStart;
+		this->argc = ec.argc;
+		this->isCalibrated = ec.isCalibrated;
+		memcpy(this->argv, ec.argv, sizeof(char) * 100 * 50);
+		memcpy(this->cam_to_cam_R, ec.cam_to_cam_R, sizeof(double) * 3 * 9);
+		memcpy(this->cam_to_cam_tvec, ec.cam_to_cam_tvec, sizeof(double) * 3 * 3);
+		memcpy(this->tot_error, ec.tot_error, sizeof(double) * 3);
+		memcpy(this->avr_error, ec.avr_error, sizeof(double) * 3);
+	}
+	void setGroundDetection(const GroundDetectionData& gd)
+	{
+		this->GroundDetectionData::bStart = gd.bStart;
+		this->iterator = gd.iterator;
+		this->isDone = gd.isDone;
 
+		memcpy(this->camera_name, gd.camera_name, sizeof(char) * 30);
+		memcpy(this->R, gd.R, sizeof(double) * 9);
+		memcpy(this->tvec, gd.tvec, sizeof(double) * 3);
+	}
 };
 
