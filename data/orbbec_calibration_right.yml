@@ -30,4 +30,4 @@ depth_to_color_tvec: !!opencv-matrix
    rows: 3
    cols: 1
    dt: f
-   data: [ -21.2737, 2.45079, 9.73104 ]
+   data: [ -21.2737, 2.45079, 9.73104  ]

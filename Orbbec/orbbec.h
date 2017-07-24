@@ -19,8 +19,9 @@ public:
 	void writeCalibrationData(std::string path);
 
 private:
-	void getRGBorIR(int dev_idx);
-	void getDepth(int dev_idx);
+	template<typename T>
+	void getRGBorIR(int dev_idx, T * output_data, double * time);
+	void getDepth(int dev_idx, unsigned short * output_data, double * time);
 	bool getData();
 
 public:

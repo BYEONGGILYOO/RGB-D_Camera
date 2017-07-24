@@ -18,6 +18,9 @@ struct function_cummunication
 
 	/////////////////////////output////////////////////////////////
 
+	//exe path
+	char exe_path[512];
+
 	//exit 함수가 콜될때 마다 시간을 체크
 	_timeb last_call;
 
@@ -48,9 +51,13 @@ private:
 
 		int MMF_state = 0; // -1: disable, 0 : disconnected, 1: connected, 2: virtual MMF
 		int data_size = 0;
-		std::string exe_name;
+		std::string IPC_name;
 		HANDLE hMapFile;
 		LPCTSTR pBuf;
+	};
+	struct ModuleInfo
+	{
+		_timeb last_call;
 	};
 
 	std::map<std::string, function> f_list;
@@ -88,15 +95,14 @@ public:
 	IPC::~IPC()
 	{
 		std::map<std::string, function>::iterator finder = f_list.find(own_name);
-		if (finder != f_list.end()) {
-			if (finder->second.MMF_state > 0)
-			{
-				finder->second.fc->trigger = 0;
-				finder->second.fc->fire = 0;
 
-				UnmapViewOfFile(finder->second.pBuf);
-				CloseHandle(finder->second.hMapFile);
-			}
+		if (finder->second.MMF_state > 0)
+		{
+			finder->second.fc->trigger = 0;
+			finder->second.fc->fire = 0;
+
+			UnmapViewOfFile(finder->second.pBuf);
+			CloseHandle(finder->second.hMapFile);
 		}
 	};
 
@@ -118,12 +124,12 @@ public:
 		finder->second.data_size = _data_size;
 		int data_size = (int)sizeof(function_cummunication) + finder->second.data_size;
 
-		finder->second.exe_name = f_name;
+		finder->second.IPC_name = f_name;
 
 		finder->second.hMapFile = OpenFileMapping(
 			FILE_MAP_ALL_ACCESS,   // read/write access
 			FALSE,                 // do not inherit the name
-			finder->second.exe_name.c_str());
+			finder->second.IPC_name.c_str());
 
 		if (finder->second.hMapFile == NULL)
 		{
@@ -131,17 +137,17 @@ public:
 
 			if (f_name == own_name)
 			{
-				printf("Open ipc (%s).\n", finder->second.exe_name.c_str());
+				printf("Open ipc (%s).\n", finder->second.IPC_name.c_str());
 				if (openMMF(finder) == 0) return 0;
 				else openMMF_flag = 1;
 			}
 			else
 			{
-				printf("Could not open ipc (%s).\n", finder->second.exe_name.c_str());
+				printf("Could not open ipc (%s).\n", finder->second.IPC_name.c_str());
 				return 0;
 			}
 		}
-		else printf("Connection success (%s).\n", finder->second.exe_name.c_str());
+		else printf("Connection success (%s).\n", finder->second.IPC_name.c_str());
 
 		finder->second.pBuf = (LPTSTR)MapViewOfFile(finder->second.hMapFile, // handle to map object
 			FILE_MAP_ALL_ACCESS,  // read/write permission
@@ -161,7 +167,7 @@ public:
 				0,
 				nullptr);
 
-			printf("Could not map view of file (%s).\n", finder->second.exe_name.c_str());
+			printf("Could not map view of file (%s).\n", finder->second.IPC_name.c_str());
 			printf("%s\n", message);
 			CloseHandle(finder->second.hMapFile);
 			finder->second.MMF_state = -1;
@@ -169,6 +175,7 @@ public:
 		}
 
 		finder->second.MMF_state = 1;
+
 		if (openMMF_flag == 1)
 		{// initialize itself
 			function_cummunication temp;
@@ -179,7 +186,17 @@ public:
 		finder->second.fc = (function_cummunication*)finder->second.pBuf;
 
 		if (f_name == own_name)
+		{
 			_ftime64_s(&finder->second.fc->last_call);
+
+			finder->second.fc->fire = 1;
+			if (finder->second.fc->trigger == 0) finder->second.fc->trigger = 2;
+
+			int bytes = GetModuleFileName(NULL, finder->second.fc->exe_path, 512);
+			if (bytes >= 512)
+				printf("Too long address\n -> %s\n", finder->second.fc->exe_path);
+		}
+
 		return 1;
 	};
 	template <typename T> T* connect(std::string f_name)
@@ -244,26 +261,27 @@ public:
 	};
 
 	///특정 프로세서 실행을 engine 에 요청함
+	///폐기된 함수
 	int start(std::string _exe_name)
 	{
-		std::map<std::string, function>::iterator finder = f_list.find(_exe_name);
-		if (finder == f_list.end()) return 0;
-		if (finder->second.MMF_state <= 0) return 0;
+		//std::map<std::string, function>::iterator finder = f_list.find(_exe_name);
+		//if (finder == f_list.end()) return 0;
+		//if (finder->second.MMF_state <= 0) return 0;
 
-		if (_exe_name == own_name)
-		{
-			finder->second.fc->fire = 1;
-			if (finder->second.fc->trigger == 0) finder->second.fc->trigger = 2;
-		}
-		else
-		{
-			finder->second.fc->trigger = 1;
-		}
+		//if (_exe_name == own_name)
+		//{
+		//	finder->second.fc->fire = 1;
+		//	if (finder->second.fc->trigger == 0) finder->second.fc->trigger = 2;
+		//}
+		//else
+		//{
+		//	finder->second.fc->trigger = 1;
+		//}
 
 		return 1;
 	};
 
-	///특정 프로세서 실행을 engine 에 요청함
+	///종료 요청. 해당 모듈은 exit 에서 종료 시그널을 받아 스스로 종료한다.
 	int stop(std::string _exe_name)
 	{
 		std::map<std::string, function>::iterator finder = f_list.find(_exe_name);
@@ -315,7 +333,6 @@ public:
 		return 0;
 	};
 };
-
 
 
 struct NaviEngine
@@ -473,15 +490,68 @@ struct RGBDcamera {
 	float colorCoeffs[4][5];
 	float depthCoeffs[4][5];
 
+	double colorTime[4];
+	double depthTime[4];
+
 	int colorWidth, colorHeight;
 	int depthWidth, depthHeight;
 
 	int num_of_senseor;
 	int ref_cam_idx;
 
-	float depth_to_color_R[4][9], depth_to_color_tvec[4][9];
+	float depth_to_color_R[4][9], depth_to_color_tvec[4][3];
 
 	char camera_order[4][50];
+	RGBDcamera()
+	{
+		memset(colorData, 0, sizeof(unsigned char) * 4 * 640 * 480 * 3);
+		memset(depthData, 0, sizeof(unsigned short) * 4 * 640 * 480);
+		memset(irData, 0, sizeof(unsigned short) * 4 * 640 * 480);
+
+		memset(colorK, 0, sizeof(float) * 4 * 4);
+		memset(depthK, 0, sizeof(float) * 4 * 4);
+		memset(colorCoeffs, 0, sizeof(float) * 4 * 5);
+		memset(depthCoeffs, 0, sizeof(float) * 4 * 5);
+		
+		memset(colorTime, 0, sizeof(double) * 4);
+		memset(depthTime, 0, sizeof(double) * 4);
+		
+		colorWidth = 0; colorHeight = 0;
+		depthWidth = 0; depthWidth = 0;
+
+		num_of_senseor = 0;
+		ref_cam_idx = 0;
+
+		memset(depth_to_color_R, 0, sizeof(float) * 4 * 9);
+		memset(depth_to_color_tvec, 0, sizeof(float) * 4 * 3);
+
+		memset(camera_order, 0, sizeof(char) * 4 * 50);
+	}
+	RGBDcamera(const RGBDcamera& rgbd)
+	{
+		memcpy(colorData, rgbd.colorData, sizeof(unsigned char) * 4 * 640 * 480 * 3);
+		memcpy(depthData, rgbd.depthData, sizeof(unsigned short) * 4 * 640 * 480);
+		memcpy(irData, rgbd.irData, sizeof(unsigned short) * 4 * 640 * 480);
+
+		memcpy(colorK, rgbd.colorK, sizeof(float) * 4 * 4);
+		memcpy(depthK, rgbd.depthK, sizeof(float) * 4 * 4);
+		memcpy(colorCoeffs, rgbd.colorCoeffs, sizeof(float) * 4 * 5);
+		memcpy(depthCoeffs, rgbd.depthCoeffs, sizeof(float) * 4 * 5);
+
+		memcpy(colorTime, rgbd.colorTime, sizeof(double) * 4);
+		memcpy(depthTime, rgbd.depthTime, sizeof(double) * 4);
+
+		colorWidth = rgbd.colorWidth; colorHeight = rgbd.colorHeight;
+		depthWidth = rgbd.depthWidth; depthHeight = rgbd.depthHeight;
+
+		num_of_senseor = rgbd.num_of_senseor;
+		ref_cam_idx = rgbd.ref_cam_idx;
+
+		memcpy(depth_to_color_R, rgbd.depth_to_color_R, sizeof(float) * 4 * 9);
+		memcpy(depth_to_color_tvec, rgbd.depth_to_color_tvec, sizeof(float) * 4 * 3);
+
+		memcpy(camera_order, rgbd.camera_order, sizeof(char) * 4 * 50);
+	}
 };
 
 struct RealSenseData

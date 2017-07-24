@@ -1,6 +1,7 @@
 #include "orbbec.h"
 
 #include <iostream>
+#include <chrono>
 #include "opencv2\core.hpp"
 #include "opencv2\imgproc.hpp"
 #include "opencv2\highgui.hpp"
@@ -112,6 +113,7 @@ bool Orbbec::initialize(std::string cam_order_path)
 		printf("%c. %s->%s (VID : %d | PID : %d) is connected""at %s\r\n", 'a' + i, list_of_devices[i].getVendor(),
 			list_of_devices[i].getName(), list_of_devices[i].getUsbVendorId(), list_of_devices[i].getUsbProductId(), list_of_devices[i].getUri());
 				
+		m_pDevice[i].setDepthColorSyncEnabled(false);
 		openRGBorIR(i);
 		openDepth(i);	
 
@@ -202,7 +204,8 @@ bool Orbbec::openDepth(int dev_idx)
 	return true;
 }
 
-void Orbbec::getRGBorIR(int dev_idx)
+template<typename T>
+void Orbbec::getRGBorIR(int dev_idx, T* output_data, double* time)
 {
 	int changedStreamDummy;
 	openni::VideoStream* pStream = &m_pStreamRGBorIR[dev_idx];
@@ -219,48 +222,29 @@ void Orbbec::getRGBorIR(int dev_idx)
 
 	if(!m_bIRon)		// rgb mode
 	{
-		const cv::Mat rgbImage(m_pData->colorHeight, m_pData->colorWidth, CV_8UC3,
-			(uchar*)frame_rgb_ir.getData());
+		const cv::Mat rgbImage(m_pData->colorHeight, m_pData->colorWidth, CV_8UC3, (T*)frame_rgb_ir.getData());
+		// time stamp
+		auto now = std::chrono::system_clock::now();
+		*time = (double)std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count() / 1000000000.0;
+		
 		cv::flip(rgbImage, rgbImage, 1);
-		cv::Mat bgrImage(m_pData->colorHeight, m_pData->colorWidth, CV_8UC3,
-			m_pData->colorData[dev_idx]);
-		cv::cvtColor(rgbImage, bgrImage, CV_RGB2BGR);
-
-		if (m_bDrawImage)
-		{
-			cv::Mat canvas;
-			cv::imshow("rgb_" + std::string(m_pData->camera_order[dev_idx]), bgrImage);
-			cv::destroyWindow("ir_" + std::string(m_pData->camera_order[dev_idx]));
-		}
-		else
-		{
-			cv::destroyWindow("rgb_" + std::string(m_pData->camera_order[dev_idx]));
-		}
+		cv::Mat bgrImage(m_pData->colorHeight, m_pData->colorWidth, CV_8UC3, (T*)output_data);
+		cv::cvtColor(rgbImage, bgrImage, CV_RGB2BGR);	
 	}
 	else
 	{
 		// ir mode
-		const cv::Mat irImage(480, 640, CV_16UC1, (uint16_t*)frame_rgb_ir.getData());
-		cv::Mat flipedIRimage(480, 640, CV_16UC1, m_pData->irData[dev_idx]);
+		const cv::Mat irImage(m_pData->colorHeight, m_pData->colorWidth, CV_16UC1, (T*)frame_rgb_ir.getData());
+		// time stamp
+		auto now = std::chrono::system_clock::now();
+		*time = (double)std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count() / 1000000000.0;
+		
+		cv::Mat flipedIRimage(m_pData->colorHeight, m_pData->colorWidth, CV_16UC1, (T*)output_data);
 		cv::flip(irImage, flipedIRimage, 1);
-
-		if (m_bDrawImage)
-		{
-			cv::Mat canvas;
-			double min, max;
-			cv::minMaxLoc(flipedIRimage, &min, &max);
-			flipedIRimage.convertTo(canvas, CV_8UC1, 1/max*255, 0);
-			cv::imshow("ir_" + std::string(m_pData->camera_order[dev_idx]), canvas);
-			cv::destroyWindow("rgb_" + std::string(m_pData->camera_order[dev_idx]));
-		}
-		else
-		{
-			cv::destroyWindow("ir_" + std::string(m_pData->camera_order[dev_idx]));
-		}
 	}
 }
 
-void Orbbec::getDepth(int dev_idx)
+void Orbbec::getDepth(int dev_idx, unsigned short* output_data, double* time)
 {
 	int changedStreamDummy;
 	openni::VideoStream* pStream = &m_pStreamDepth[dev_idx];
@@ -273,9 +257,13 @@ void Orbbec::getDepth(int dev_idx)
 	{
 		const cv::Mat depthImage(m_pData->depthHeight, m_pData->depthWidth, CV_16UC1,
 			(ushort*)frame_depth.getData());
+		// time stamp
+		auto now = std::chrono::system_clock::now();
+		*time = (double)std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count() / 1000000000.0;
+
 		cv::flip(depthImage, depthImage, 1);
 
-		cv::Mat newDepth(m_pData->colorHeight, m_pData->colorWidth, CV_16UC1, cv::Scalar(0));
+		cv::Mat newDepth(m_pData->colorHeight, m_pData->colorWidth, CV_16UC1, output_data);
 		if (m_bEnableRegistration)
 		{
 			for (int y = 0; y < depthImage.rows; y++)
@@ -297,29 +285,16 @@ void Orbbec::getDepth(int dev_idx)
 					const int cx = (int)std::round(m_pRegistrationMatrix[dev_idx][0] * (double)x + m_pRegistrationMatrix[dev_idx][1] * (double)y + m_pRegistrationMatrix[dev_idx][2] + m_pRegistrationMatrix[dev_idx][3] / (double)depth_val_float);
 					const int cy = (int)std::round(m_pRegistrationMatrix[dev_idx][4] * (double)x + m_pRegistrationMatrix[dev_idx][5] * (double)y + m_pRegistrationMatrix[dev_idx][6] + m_pRegistrationMatrix[dev_idx][7] / (double)depth_val_float);
 
-					if (cx < 0 || cy < 0 || cx >= m_pRGBDparam[dev_idx].color_intrinsic.width || cy >= m_pRGBDparam[dev_idx].color_intrinsic.height) {
-						
+					if (cx < 0 || cy < 0 || cx >= m_pRGBDparam[dev_idx].color_intrinsic.width || cy >= m_pRGBDparam[dev_idx].color_intrinsic.height) 
 						continue;
-					}
+					
 					uint16_t * val = (uint16_t*)newDepth.ptr<uint16_t>(cy, cx);
 					*val = depth_val;
 				}
 			}
 		}
-		else
-			newDepth = depthImage.clone();
-		memcpy(m_pData->depthData[dev_idx], newDepth.data, sizeof(ushort) * m_pData->colorHeight * m_pData->colorWidth);
-
-		if (m_bDrawImage)
-		{
-			cv::Mat canvas;
-			newDepth.convertTo(canvas, CV_8UC1, 0.05, -25);
-			cv::imshow("depth_" + std::string(m_pData->camera_order[dev_idx]), canvas);
-		}
-		else
-		{
-			cv::destroyWindow("depth_" + std::string(m_pData->camera_order[dev_idx]));
-		}
+		else		// no registration
+			memcpy(output_data, depthImage.data, sizeof(ushort)* m_pData->colorHeight * m_pData->colorWidth);		
 	}
 }
 
@@ -327,13 +302,76 @@ bool Orbbec::getData()
 {
 	bool stream_is_updated = false;
 
+	// buff init
+	uchar** rgb_buff = nullptr;
+	ushort** ir_buff = nullptr;
+	if (!m_bIRon)
+		rgb_buff = new uchar*[num_of_cameras];
+	else
+		ir_buff = new ushort*[num_of_cameras];
+
+	ushort** depth_buff = new ushort*[num_of_cameras];
+
+	double* color_time_buff = new double[num_of_cameras];
+	double* depth_time_buff = new double[num_of_cameras];
+
+	// get the data at buff memory
 	for (int i = 0; i < num_of_cameras; i++)
 	{
 		stream_is_updated = true;
-		getRGBorIR(i);
-		getDepth(i);
+		if (!m_bIRon)
+		{
+			rgb_buff[i] = new uchar[this->m_pData->colorHeight * this->m_pData->colorWidth * 3];
+			getRGBorIR(i, rgb_buff[i], &color_time_buff[i]);
+		}
+		else
+		{
+			ir_buff[i] = new ushort[this->m_pData->colorHeight * this->m_pData->colorWidth * 1];
+			getRGBorIR(i, ir_buff[i], &color_time_buff[i]);
+		}
 
-		if (m_bOverlap) {
+		depth_buff[i] = new ushort[this->m_pData->depthHeight * this->m_pData->depthWidth];
+		memset(depth_buff[i], 0, sizeof(ushort) * this->m_pData->depthHeight * this->m_pData->depthWidth);
+		getDepth(i, depth_buff[i], &depth_time_buff[i]);
+	}
+
+	// update buff to shared memory
+	if (!m_bIRon)
+		for (int i = 0; i < num_of_cameras; i++) {
+			memcpy(m_pData->colorData[i], rgb_buff[i], sizeof(uchar)*m_pData->colorHeight*m_pData->colorWidth * 3);
+			memcpy(&m_pData->colorTime[i], &color_time_buff[i], sizeof(double));
+		}
+	else
+		for (int i = 0; i < num_of_cameras; i++) {
+			memcpy(m_pData->irData[i], ir_buff[i], sizeof(ushort)*m_pData->depthHeight*m_pData->depthWidth * 1);
+			memcpy(&m_pData->colorTime[i], &color_time_buff[i], sizeof(double));
+		}
+	for (int i = 0; i < num_of_cameras; i++) {
+		memcpy(m_pData->depthData[i], depth_buff[i], sizeof(ushort)*m_pData->depthHeight*m_pData->depthWidth * 1);
+		memcpy(&m_pData->depthTime[i], &depth_time_buff[i], sizeof(double));
+	}
+
+	// release buff memory
+	for (int i = 0; i < num_of_cameras; i++)
+	{
+		if (rgb_buff != nullptr)
+			delete[] rgb_buff[i];
+		if (ir_buff != nullptr)
+			delete[] ir_buff[i];
+		delete[] depth_buff[i];
+	}
+	if(rgb_buff != nullptr)
+		delete[] rgb_buff;
+	if (ir_buff != nullptr)
+		delete[] ir_buff;
+	delete[] depth_buff;
+	delete[] color_time_buff;
+	delete[] depth_time_buff;
+
+	
+	if (m_bOverlap) {
+		for (int i = 0; i < num_of_cameras; i++)
+		{
 			cv::Mat canvas;
 			cv::Mat depth(m_pData->depthHeight, m_pData->depthWidth, CV_16UC1, m_pData->depthData[i]);
 			cv::Mat color(m_pData->colorHeight, m_pData->colorWidth, CV_8UC3, m_pData->colorData[i]);
@@ -341,13 +379,57 @@ bool Orbbec::getData()
 			getDepthHistogram(depth, caliDepthHistogram);
 			cv::addWeighted(caliDepthHistogram, (double)(5 / 10.0), color, (double)(5 / 10.0), 0.5, canvas);
 			cv::imshow("overlap img " + std::string(m_pData->camera_order[i]), canvas);
-			cv::waitKey(10);
+		}
+		cv::waitKey(10);
+	}
+	else
+		for (int i = 0; i < num_of_cameras; i++)
+			cv::destroyWindow("overlap img " + std::string(m_pData->camera_order[i]));
+
+
+	if (m_bDrawImage)
+	{
+		if (!m_bIRon)
+		{
+			for (int i = 0; i < num_of_cameras; i++)
+			{
+				cv::Mat canvas;
+				cv::imshow("rgb_" + std::string(m_pData->camera_order[i]), cv::Mat(m_pData->colorHeight, m_pData->colorWidth, CV_8UC3, m_pData->colorData[i]));
+				cv::destroyWindow("ir_" + std::string(m_pData->camera_order[i]));
+			}
 		}
 		else
-			cv::destroyWindow("overlap img " + std::string(m_pData->camera_order[i]));
-	}
-	if (m_bDrawImage)
+		{
+			for (int i = 0; i < num_of_cameras; i++)
+			{
+				cv::Mat ir(m_pData->depthHeight, m_pData->depthWidth, CV_16UC1, m_pData->irData[i]);
+				cv::Mat canvas;
+				double min, max;
+				cv::minMaxLoc(ir, &min, &max);
+				ir.convertTo(canvas, CV_8UC1, 1 / max * 255, 0);
+				cv::imshow("ir_" + std::string(m_pData->camera_order[i]), canvas);
+				cv::destroyWindow("rgb_" + std::string(m_pData->camera_order[i]));
+			}
+		}
+		for (int i = 0; i < num_of_cameras; i++)
+		{
+			cv::Mat depth(m_pData->depthHeight, m_pData->depthWidth, CV_16UC1, m_pData->depthData[i]);
+			cv::Mat canvas;
+			depth.convertTo(canvas, CV_8UC1, 0.05, -25);
+			cv::imshow("depth_" + std::string(m_pData->camera_order[i]), canvas);
+		}
 		cv::waitKey(10);
+	}
+	else
+	{
+		for (int i = 0; i < num_of_cameras; i++)
+		{
+			cv::destroyWindow("rgb_" + std::string(m_pData->camera_order[i]));
+			cv::destroyWindow("ir_" + std::string(m_pData->camera_order[i]));
+			cv::destroyWindow("depth_" + std::string(m_pData->camera_order[i]));
+		}
+	}
+	
 	return stream_is_updated;
 }
 

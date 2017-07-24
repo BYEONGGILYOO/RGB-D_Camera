@@ -177,14 +177,14 @@ void readParameterYaml(std::string full_path, struct _rgbd_parameters_ * data)
 
 	fs["cam_name"] >> data->cam_id;
 	cv::Mat k, coeffs, R, t;
-	fs["rgb_intrinsics"] >> k;
+	fs["rgb_intrinsic"] >> k;
 	data->color_intrinsic.fx = k.at<float>(0, 0); data->color_intrinsic.ppx = k.at<float>(0, 2);
 	data->color_intrinsic.fy = k.at<float>(1, 1); data->color_intrinsic.ppy = k.at<float>(1, 2);
 
 	fs["rgb_distortion"] >> coeffs;
 	memcpy(data->color_intrinsic.coeffs, coeffs.data, sizeof(float) * 5);
 
-	fs["depth_intrinsics"] >> k;
+	fs["depth_intrinsic"] >> k;
 	data->depth_intrinsic.fx = k.at<float>(0, 0); data->depth_intrinsic.ppx = k.at<float>(0, 2);
 	data->depth_intrinsic.fy = k.at<float>(1, 1); data->depth_intrinsic.ppy = k.at<float>(1, 2);
 
@@ -214,12 +214,12 @@ void writeParametersYaml(std::string full_path, const struct _rgbd_parameters_ *
 	k.at<float>(0, 0) = data->color_intrinsic.fx; k.at<float>(0, 2) = data->color_intrinsic.ppx;
 	k.at<float>(1, 1) = data->color_intrinsic.fy; k.at<float>(1, 2) = data->color_intrinsic.ppy;
 
-	fs << "rgb_intrinsics" << k;
+	fs << "rgb_intrinsic" << k;
 	fs << "rgb_distortion" << cv::Mat(1, 5, CV_32FC1, (float*)data->color_intrinsic.coeffs);
 
 	k.at<float>(0, 0) = data->depth_intrinsic.fx; k.at<float>(0, 2) = data->depth_intrinsic.ppx;
 	k.at<float>(1, 1) = data->depth_intrinsic.fy; k.at<float>(1, 2) = data->depth_intrinsic.ppy;
-	fs << "depth_intrinsics" << k;
+	fs << "depth_intrinsic" << k;
 	fs << "depth_distortion" << cv::Mat(1, 5, CV_32FC1, (float*)data->depth_intrinsic.coeffs);
 	fs << "depth_to_color_Rot" << cv::Mat(3, 3, CV_32FC1, (float*)data->depth_to_color.rotation);
 	fs << "depth_to_color_tvec" << cv::Mat(3, 1, CV_32FC1, (float*)data->depth_to_color.translation);
