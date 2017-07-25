@@ -1,7 +1,7 @@
 %YAML:1.0
 ---
 cam_name: "front"
-rgb_intrinsics: !!opencv-matrix
+rgb_intrinsic: !!opencv-matrix
    rows: 3
    cols: 3
    dt: f
@@ -11,7 +11,7 @@ rgb_distortion: !!opencv-matrix
    cols: 5
    dt: f
    data: [ 0., 0., 0., 0., 0. ]
-depth_intrinsics: !!opencv-matrix
+depth_intrinsic: !!opencv-matrix
    rows: 3
    cols: 3
    dt: f

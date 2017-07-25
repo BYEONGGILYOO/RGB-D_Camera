@@ -95,14 +95,15 @@ public:
 	IPC::~IPC()
 	{
 		std::map<std::string, function>::iterator finder = f_list.find(own_name);
+		if (finder != f_list.end()) {
+			if (finder->second.MMF_state > 0)
+			{
+				finder->second.fc->trigger = 0;
+				finder->second.fc->fire = 0;
 
-		if (finder->second.MMF_state > 0)
-		{
-			finder->second.fc->trigger = 0;
-			finder->second.fc->fire = 0;
-
-			UnmapViewOfFile(finder->second.pBuf);
-			CloseHandle(finder->second.hMapFile);
+				UnmapViewOfFile(finder->second.pBuf);
+				CloseHandle(finder->second.hMapFile);
+			}
 		}
 	};
 
@@ -349,15 +350,19 @@ struct Cam_640480
 struct Robot
 {
 	//////////////////////////// input ////////////////////////////
+	double set_max_vel = 700.0;
+	double set_max_rot_vel = 20.0;
+
 	double set_vel = 0.0;
 	double set_rotvel = 0.0;
 
-	bool direct_on = false;
 	bool navigate_on = false;
-	bool near_goal = false;
-	//double sub_goal_x = 0.0;
-	//double sub_goal_y = 0.0;
-	//double sub_goal_th = 0.0;
+	bool direct_on = false;
+	//mm
+	//<0:not observed
+	double dist_2_destination = -1.0;
+	//bool near_goal = false;
+
 	int sub_goal_number = 0;
 	double sub_goal[20][4]; // [order][{x, y, th, idx}]
 
@@ -512,10 +517,10 @@ struct RGBDcamera {
 		memset(depthK, 0, sizeof(float) * 4 * 4);
 		memset(colorCoeffs, 0, sizeof(float) * 4 * 5);
 		memset(depthCoeffs, 0, sizeof(float) * 4 * 5);
-		
+
 		memset(colorTime, 0, sizeof(double) * 4);
 		memset(depthTime, 0, sizeof(double) * 4);
-		
+
 		colorWidth = 0; colorHeight = 0;
 		depthWidth = 0; depthWidth = 0;
 
@@ -538,14 +543,14 @@ struct RGBDcamera {
 		memcpy(colorCoeffs, rgbd.colorCoeffs, sizeof(float) * 4 * 5);
 		memcpy(depthCoeffs, rgbd.depthCoeffs, sizeof(float) * 4 * 5);
 
-		memcpy(colorTime, rgbd.colorTime, sizeof(double) * 4);
-		memcpy(depthTime, rgbd.depthTime, sizeof(double) * 4);
-
 		colorWidth = rgbd.colorWidth; colorHeight = rgbd.colorHeight;
 		depthWidth = rgbd.depthWidth; depthHeight = rgbd.depthHeight;
 
 		num_of_senseor = rgbd.num_of_senseor;
 		ref_cam_idx = rgbd.ref_cam_idx;
+
+		memcpy(colorTime, rgbd.colorTime, sizeof(double) * 4);
+		memcpy(depthTime, rgbd.depthTime, sizeof(double) * 4);
 
 		memcpy(depth_to_color_R, rgbd.depth_to_color_R, sizeof(float) * 4 * 9);
 		memcpy(depth_to_color_tvec, rgbd.depth_to_color_tvec, sizeof(float) * 4 * 3);
@@ -636,6 +641,8 @@ struct ExtrinsicCalibration
 	double tot_error[3];
 	double avr_error[3];
 
+	double gathering_data_hz;
+
 	ExtrinsicCalibration()
 		:bStart(false), argc(0), isCalibrated(false)
 	{
@@ -644,6 +651,8 @@ struct ExtrinsicCalibration
 		memset(cam_to_cam_tvec, 0, sizeof(double) * 3 * 3);
 		memset(tot_error, 0, sizeof(double) * 3);
 		memset(avr_error, 0, sizeof(double) * 3);
+
+		gathering_data_hz = 60;
 	}
 };
 
@@ -694,3 +703,20 @@ struct MultipleCalibration
 	}
 };
 
+struct GridData
+{
+	//0:wait, 1:every iterator
+	int get_grid_mode = 1;
+	bool mamual_ground_detecte = false;
+
+	double mm2grid = 100.0 / 1000.0;
+
+	int cgridWidth = 500;
+	int cgridHeight = 500;
+	int cRobotCol = 250;
+	int cRobotRow = 350;
+
+	unsigned char gridData[500 * 500];
+	unsigned char freeData[500 * 500];
+	unsigned char occupyData[500 * 500];
+};
