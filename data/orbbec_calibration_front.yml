@@ -1,6 +1,6 @@
 %YAML:1.0
 ---
-cam_name: "front"
+camera_position: "front"
 rgb_intrinsic: !!opencv-matrix
    rows: 3
    cols: 3

@@ -61,7 +61,7 @@ bool Orbbec::initialize(std::string cam_order_path)
 
 	m_pRGBDparam = new RGBD_Parameters[num_of_cameras];
 
-	m_pRegistrationMatrix = new float*[num_of_cameras];
+	m_pRegistrationMatrix = new double*[num_of_cameras];
 
 	// object init
 	if (num_of_cameras > 1) {
@@ -124,7 +124,7 @@ bool Orbbec::initialize(std::string cam_order_path)
 		m_pRGBDparam[i].depth_intrinsic.width = nWidth;
 		m_pRGBDparam[i].depth_intrinsic.height = nHeight;
 
-		m_pRegistrationMatrix[i] = new float[16];
+		m_pRegistrationMatrix[i] = new double[16];
 		m_pRGBDparam[i].get_depth2color_all_matrix(m_pRegistrationMatrix[i]);
 	}
 	return true;
@@ -550,11 +550,12 @@ void Orbbec::threadRun()
 
 void Orbbec::readCalibrationData(std::string path)
 {
-	readCameraOrder(path + "cam_order.yml", cam_order, ref_cam_idx);
+	std::string cam_name;
+	readCameraOrder(path + "cam_order.yml", cam_name, cam_order, ref_cam_idx);
 
 	for (int i = 0; i < num_of_cameras; i++)
 	{
-		readParameterYaml(path + "orbbec_calibration_" + cam_order[i] + ".yml", &this->m_pRGBDparam[i]);
+		readParameterYaml(path + "calibration_orbbec_" + cam_order[i] + ".yml", &this->m_pRGBDparam[i]);
 		const char* tmp = cam_order[i].c_str();
 		memcpy(m_pData->camera_order[i], tmp, strlen(tmp) + 1);
 		m_pData->colorK[i][0] = m_pRGBDparam[i].color_intrinsic.ppx;

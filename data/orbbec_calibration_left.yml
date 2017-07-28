@@ -1,6 +1,6 @@
 %YAML:1.0
 ---
-cam_name: "left"
+camera_position: "left"
 rgb_intrinsic: !!opencv-matrix
    rows: 3
    cols: 3

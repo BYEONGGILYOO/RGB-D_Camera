@@ -24,7 +24,7 @@
     <ClInclude Include="orbbec_astra.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="camera_matrix.h">
+    <ClInclude Include="..\include\common\camera_matrix.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -41,7 +41,7 @@
     <ClCompile Include="orbbec_astra.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="camera_matrix.cpp">
+    <ClCompile Include="..\include\common\camera_matrix.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

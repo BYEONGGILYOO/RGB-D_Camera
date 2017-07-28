@@ -63,7 +63,7 @@ private:
 	int ref_cam_idx;
 	
 	bool m_bEnableRegistration;
-	float **m_pRegistrationMatrix;
+	double **m_pRegistrationMatrix;
 
 	// commend flag
 	bool m_bDrawImage;
