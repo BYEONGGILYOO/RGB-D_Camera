@@ -10,7 +10,7 @@ Orbbec::Orbbec(RGBDcamera * data, IPC * ipc)
 	:m_pData(data), m_pIpc(ipc), num_of_cameras(0),
 	m_pDevice(nullptr), m_pStreamDepth(nullptr), m_pStreamRGBorIR(nullptr), m_pRGBDparam(nullptr),
 	ref_cam_idx(0),
-	m_bEnableRegistration(false), m_bDrawImage(false), m_bIRon(false), m_bStopThread(false), m_bOverlap(false)
+	m_pEnableRegistration(&data->registration_enable), m_bDrawImage(false), m_bIRon(false), m_bStopThread(false), m_bOverlap(false)
 {
 	
 }
@@ -264,7 +264,7 @@ void Orbbec::getDepth(int dev_idx, unsigned short* output_data, double* time)
 		cv::flip(depthImage, depthImage, 1);
 
 		cv::Mat newDepth(m_pData->colorHeight, m_pData->colorWidth, CV_16UC1, output_data);
-		if (m_bEnableRegistration)
+		if (*m_pEnableRegistration)
 		{
 			for (int y = 0; y < depthImage.rows; y++)
 			{
@@ -514,12 +514,12 @@ void Orbbec::getDepthHistogram(cv::Mat & src, cv::Mat & dst)
 
 void Orbbec::enableRegistration(const bool flag)
 {
-	m_bEnableRegistration = flag;
+	*m_pEnableRegistration = flag;
 }
 
 bool Orbbec::regisrationEnabled() const
 {
-	return m_bEnableRegistration;
+	return *m_pEnableRegistration;
 }
 
 void Orbbec::enableIR(const bool flag)

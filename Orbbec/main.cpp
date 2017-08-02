@@ -1,11 +1,13 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include <iostream>
+#include <ctime>
 #include <chrono>
 #include "functions.h"
 #include "camera_matrix.h"
 #include "opencv2\core.hpp"
 #include "opencv2\imgproc.hpp"
 #include "opencv2\highgui.hpp"
+#include "opencv2\imgcodecs.hpp"
 
 #include "orbbec.h"
 
@@ -150,36 +152,54 @@ int main(int argc, char** argv)
 		
 	});*/
 
-	if (0) {
+	if (1) {
 		std::thread takePictureForCalibration([&]() {
 			IPC ipc("takePictureForCalibration.exe");
 			RGBDcamera *data2 = ipc.connect<RGBDcamera>("Orbbec.exe");
 
-			cv::Mat img1(data2->colorHeight, data2->colorWidth, CV_8UC3);
-			cv::Mat img2(data2->colorHeight, data2->colorWidth, CV_8UC3);
-			cv::Mat img3(data2->colorHeight, data2->colorWidth, CV_8UC3);
+			cv::Mat img(data2->colorHeight, data2->colorWidth, CV_8UC3);
+			cv::Mat depth(data2->depthHeight, data2->depthWidth, CV_16UC1);
+			cv::Mat depth1_8U(data2->depthHeight, data2->depthWidth, CV_8UC1);
+			cv::Mat canvas;
 
-			cv::Mat ir1(data2->depthHeight, data2->depthWidth, CV_16UC1);
-			cv::Mat ir2(data2->depthHeight, data2->depthWidth, CV_16UC1);
-			cv::Mat ir3(data2->depthHeight, data2->depthWidth, CV_16UC1);
-
-			while (1)
+			char key = 0;
+			double etime = 0.0;
+			int waiting_time = 10;
+			int frm_cnt = 0;
+			std::string cam_pos(data2->camera_order[0]);
+			std::cout << cam_pos << std::endl;
+			std::string path = "../data/depth_calibration/";
+			while (key != 27)
 			{
-				if (!orbbec.IRenabled())
-				{
-					memcpy(img1.data, data2->colorData[0], sizeof(uchar)*data2->colorHeight*data2->colorWidth * 3);
-					memcpy(img2.data, data2->colorData[1], sizeof(uchar)*data2->colorHeight*data2->colorWidth * 3);
-					memcpy(img3.data, data2->colorData[2], sizeof(uchar)*data2->colorHeight*data2->colorWidth * 3);
-				}
-				else
-				{
-					memcpy(ir1.data, data2->irData[0], sizeof(ushort)*data2->depthHeight*data2->depthWidth);
-					memcpy(ir2.data, data2->irData[1], sizeof(ushort)*data2->depthHeight*data2->depthWidth);
-					memcpy(ir3.data, data2->irData[2], sizeof(ushort)*data2->depthHeight*data2->depthWidth);
-				}
+				int64 t1 = cv::getTickCount();
+				
+				memcpy(img.data, data2->colorData[0], sizeof(uchar)*data2->colorHeight*data2->colorWidth * 3);
+				memcpy(depth.data, data2->depthData[0], sizeof(ushort)*data2->depthHeight*data2->depthWidth);
 
+				depth.convertTo(depth1_8U, CV_8UC1, 0.025, -25);
+				cv::cvtColor(depth1_8U, depth1_8U, CV_GRAY2BGR);
 
-				cv::waitKey(10);
+				cv::hconcat(img, depth1_8U, canvas);
+				cv::imshow("RGB and Depth maps", canvas);
+
+				int64 t2 = cv::getTickCount();
+				etime = (double)(t2 - t1) / cv::getTickFrequency()*1000.0;
+				std::cout << "Elapsed time: " << etime << std::endl;
+				waiting_time = 180 - etime;
+				waiting_time = waiting_time < 0 ? 1 : waiting_time;
+				key = cv::waitKey(waiting_time);
+
+				if (key == ' ')
+				{
+					char filename[256];
+					sprintf(filename, "%s_rgb_%04d.png", cam_pos, frm_cnt);
+					cv::imwrite(path + filename, img);
+					std::cout << filename << " written" << std::endl;
+					sprintf(filename, "%s_depth_%04d.png", cam_pos, frm_cnt);
+					imwrite(path + filename, depth);
+					std::cout << filename << " written" << std::endl;
+					frm_cnt++;
+				}
 			}
 		});
 		takePictureForCalibration.join();
@@ -370,5 +390,9 @@ void commend_thread(Orbbec* orbbec)
 			orbbec->enableOverlap(!orbbec->overlapEnabled());
 		}
 		
+		if (commend == "q" || commend == "exit" || commend == "Exit")
+		{
+			break;
+		}
 	}
 }

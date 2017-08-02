@@ -62,7 +62,7 @@ private:
 	int num_of_cameras;
 	int ref_cam_idx;
 	
-	bool m_bEnableRegistration;
+	bool *m_pEnableRegistration;
 	double **m_pRegistrationMatrix;
 
 	// commend flag
