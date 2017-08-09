@@ -30,6 +30,10 @@ public:
 	void stopRGBorIRstream(const int dev_idx) const;
 	void stopDepthstream(const int dev_idx) const;
 
+	// input data
+	void setRGBSize(int nWidth, int nHeight);
+	void setDepthSize(int nWidth, int nHeight);
+
 	// draw func
 	void getDepthHistogram(cv::Mat &src, cv::Mat &dst);
 
@@ -50,6 +54,10 @@ private:
 	// IPC object
 	RGBDcamera *m_pData;
 	IPC *m_pIpc;
+
+	// input data
+	int rgb_width, rgb_height;
+	int depth_width, depth_height;
 
 	// openni object
 	openni::Device *m_pDevice;

@@ -7,7 +7,7 @@
 #include "opencv2\highgui.hpp"
 
 Orbbec::Orbbec(RGBDcamera * data, IPC * ipc)
-	:m_pData(data), m_pIpc(ipc), num_of_cameras(0),
+	:m_pData(data), m_pIpc(ipc), rgb_width(640), rgb_height(480), depth_width(640), depth_height(480), num_of_cameras(0),
 	m_pDevice(nullptr), m_pStreamDepth(nullptr), m_pStreamRGBorIR(nullptr), m_pRGBDparam(nullptr),
 	ref_cam_idx(0),
 	m_pEnableRegistration(&data->registration_enable), m_bDrawImage(false), m_bIRon(false), m_bStopThread(false), m_bOverlap(false)
@@ -75,8 +75,8 @@ bool Orbbec::initialize(std::string cam_order_path)
 	}
 	else if (num_of_cameras == 1)	// for test only one camera
 	{
-		cam_order.push_back("front");
-		readParameterYaml(cam_order_path + "orbbec_calibration_" + cam_order[0] + ".yml", &this->m_pRGBDparam[0]);
+		cam_order.push_back("right");
+		readParameterYaml(cam_order_path + "calibration_orbbec_" + cam_order[0] + ".yml", &this->m_pRGBDparam[0]);
 		const char* tmp = cam_order[0].c_str();
 		memcpy(m_pData->camera_order[0], tmp, strlen(tmp) + 1);
 		m_pData->colorK[0][0] = m_pRGBDparam[0].color_intrinsic.ppx;
@@ -99,12 +99,10 @@ bool Orbbec::initialize(std::string cam_order_path)
 	m_pData->num_of_senseor = num_of_cameras;
 	m_pData->ref_cam_idx = ref_cam_idx;
 
-	int nWidth = 640;
-	int nHeight = 480;
-	m_pData->colorHeight = nHeight;
-	m_pData->colorWidth = nWidth;
-	m_pData->depthHeight = nHeight;
-	m_pData->depthWidth = nWidth;
+	m_pData->colorWidth = rgb_width;
+	m_pData->colorHeight = rgb_height;
+	m_pData->depthWidth = depth_width;
+	m_pData->depthHeight = depth_height;
 
 	// open the video
 	for (int i = 0; i < num_of_cameras; i++)
@@ -119,10 +117,10 @@ bool Orbbec::initialize(std::string cam_order_path)
 
 		//iMaxDepth[i] = m_pStreamDepth[i].getMaxPixelValue();
 
-		m_pRGBDparam[i].color_intrinsic.width = nWidth;
-		m_pRGBDparam[i].color_intrinsic.height = nHeight;
-		m_pRGBDparam[i].depth_intrinsic.width = nWidth;
-		m_pRGBDparam[i].depth_intrinsic.height = nHeight;
+		m_pRGBDparam[i].color_intrinsic.width = rgb_width;
+		m_pRGBDparam[i].color_intrinsic.height = rgb_height;
+		m_pRGBDparam[i].depth_intrinsic.width = depth_width;
+		m_pRGBDparam[i].depth_intrinsic.height = depth_height;
 
 		m_pRegistrationMatrix[i] = new double[16];
 		m_pRGBDparam[i].get_depth2color_all_matrix(m_pRegistrationMatrix[i]);
@@ -135,7 +133,7 @@ bool Orbbec::openRGBorIR(int dev_idx)
 	this->stopRGBorIRstream(dev_idx);
 
 	openni::Status rc;
-	int nWidth = 480, nHeight = 640;
+	int nWidth = this->rgb_width, nHeight = this->rgb_height;
 	if (!m_bIRon)
 	{
 		if (m_pDevice[dev_idx].getSensorInfo(openni::SENSOR_COLOR) != nullptr)
@@ -181,7 +179,7 @@ bool Orbbec::openDepth(int dev_idx)
 	this->stopDepthstream(dev_idx);
 
 	openni::Status rc;
-	int nWidth = 480, nHeight = 640;
+	int nWidth = depth_width, nHeight = depth_height;
 
 	if (m_pDevice[dev_idx].getSensorInfo(openni::SENSOR_DEPTH) != nullptr)
 	{
@@ -465,6 +463,18 @@ void Orbbec::stopDepthstream(const int dev_idx) const
 {
 	m_pStreamDepth[dev_idx].stop();
 	m_pStreamDepth[dev_idx].destroy();
+}
+
+void Orbbec::setRGBSize(int nWidth, int nHeight)
+{
+	this->rgb_width = nWidth;
+	this->rgb_height = nHeight;
+}
+
+void Orbbec::setDepthSize(int nWidth, int nHeight)
+{
+	this->depth_width = nWidth;
+	this->depth_height = nHeight;
 }
 
 void Orbbec::getDepthHistogram(cv::Mat & src, cv::Mat & dst)

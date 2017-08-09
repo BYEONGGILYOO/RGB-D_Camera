@@ -23,6 +23,7 @@ int main(int argc, char** argv)
 
 	Orbbec orbbec(rgbdData, &ipc);
 	//orbbec.m_bIRon = true;
+	//orbbec.setRGBSize(1280, 960);
 	orbbec.initialize("..\\data\\");
 	int num_of_sensor = rgbdData->num_of_senseor;
 	orbbec.enableRegistration(true);
@@ -33,6 +34,7 @@ int main(int argc, char** argv)
 	}
 
 	sensorThread = std::thread(&Orbbec::threadRun, &orbbec);
+	std::thread commendThread(commend_thread, &orbbec);
 	/*std::thread forTest([&]() {
 		Sleep(10000);
 		IPC ipc("test.exe");
@@ -166,7 +168,7 @@ int main(int argc, char** argv)
 			double etime = 0.0;
 			int waiting_time = 10;
 			int frm_cnt = 0;
-			std::string cam_pos(data2->camera_order[0]);
+			std::string cam_pos = std::string(data2->camera_order[0]);
 			std::cout << cam_pos << std::endl;
 			std::string path = "../data/depth_calibration/";
 			while (key != 27)
@@ -184,7 +186,7 @@ int main(int argc, char** argv)
 
 				int64 t2 = cv::getTickCount();
 				etime = (double)(t2 - t1) / cv::getTickFrequency()*1000.0;
-				std::cout << "Elapsed time: " << etime << std::endl;
+				//std::cout << "Elapsed time: " << etime << std::endl;
 				waiting_time = 180 - etime;
 				waiting_time = waiting_time < 0 ? 1 : waiting_time;
 				key = cv::waitKey(waiting_time);
@@ -192,10 +194,10 @@ int main(int argc, char** argv)
 				if (key == ' ')
 				{
 					char filename[256];
-					sprintf(filename, "%s_rgb_%04d.png", cam_pos, frm_cnt);
+					sprintf(filename, "%s_rgb_%04d.png", cam_pos.c_str(), frm_cnt);
 					cv::imwrite(path + filename, img);
 					std::cout << filename << " written" << std::endl;
-					sprintf(filename, "%s_depth_%04d.png", cam_pos, frm_cnt);
+					sprintf(filename, "%s_depth_%04d.png", cam_pos.c_str(), frm_cnt);
 					imwrite(path + filename, depth);
 					std::cout << filename << " written" << std::endl;
 					frm_cnt++;
@@ -324,7 +326,6 @@ int main(int argc, char** argv)
 		registration.join();
 	}
 
-	std::thread commendThread(commend_thread, &orbbec);
 	sensorThread.join();
 	//forTest.join();
 		
