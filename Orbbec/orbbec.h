@@ -3,16 +3,27 @@
 #include "OpenNI.h"
 #include "camera_matrix.h"
 
+#include <iostream>
+#include <mutex>
+#include <opencv2/core.hpp>
+
 class Orbbec
 {
 public:
+	enum Resolution
+	{
+		// SXGA:	1280 x 960
+		// VGA:		640 x 480
+		// QVGA:	320 x 240
+		SXGA, VGA, QVGA
+	};
 	Orbbec(RGBDcamera *data, IPC *ipc);
 	~Orbbec();
 
 	bool initialize(std::string cam_order_path);
 	bool openRGBorIR(int dev_idx);
 	bool openDepth(int dev_idx);
-	void threadRun();
+	void threadRun(std::mutex* mtx);
 
 	// Enter only the data path, not the file name.
 	void readCalibrationData(std::string path);
@@ -31,9 +42,12 @@ public:
 	void stopDepthstream(const int dev_idx) const;
 
 	// input data
-	void setRGBSize(int nWidth, int nHeight);
-	void setDepthSize(int nWidth, int nHeight);
-
+	void setRGBResolution(const int nWidth, const int nHeight);
+	void setRGBResolution(const Resolution res);
+	void setDepthResolution(const int nWidth, const int nHeight);
+	void setDepthResolution(const Resolution res);
+	int getRGBResolution() const;
+	int getDepthResolution() const;
 	// draw func
 	void getDepthHistogram(cv::Mat &src, cv::Mat &dst);
 
@@ -54,7 +68,7 @@ private:
 	// IPC object
 	RGBDcamera *m_pData;
 	IPC *m_pIpc;
-
+	
 	// input data
 	int rgb_width, rgb_height;
 	int depth_width, depth_height;
@@ -78,5 +92,8 @@ private:
 	bool m_bIRon;
 	bool m_bStopThread;
 	bool m_bOverlap;
+
+	int m_depthResolution;
+	int m_RGBResolution;
 };
 

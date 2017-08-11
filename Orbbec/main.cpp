@@ -11,30 +11,35 @@
 
 #include "orbbec.h"
 
-void commend_thread(Orbbec* orbbec);
+#include <mutex>
+
+void commend_thread(Orbbec* orbbec, std::mutex* mtx);
 std::thread sensorThread;
 int main(int argc, char** argv)
 {
 	IPC ipc("Orbbec.exe");
 	RGBDcamera *rgbdData = ipc.connect<RGBDcamera>("Orbbec.exe");
+	std::mutex mtx;
 
 	Sleep(300);
 	ipc.start("Orbbec.exe");
 
-	Orbbec orbbec(rgbdData, &ipc);
+	Orbbec* orbbec = new Orbbec(rgbdData, &ipc);
 	//orbbec.m_bIRon = true;
-	//orbbec.setRGBSize(1280, 960);
-	orbbec.initialize("..\\data\\");
+	orbbec->initialize("..\\data\\");
+		
 	int num_of_sensor = rgbdData->num_of_senseor;
-	orbbec.enableRegistration(true);
-	for (int i = 0; i < num_of_sensor; i++)
+	orbbec->enableRegistration(true);
+	/*for (int i = 0; i < num_of_sensor; i++)
 	{
-		orbbec.startDepthstream(i);
-		orbbec.startRGBorIRstream(i);
-	}
+		orbbec->startDepthstream(i);
+		orbbec->startRGBorIRstream(i);
+	}*/
 
-	sensorThread = std::thread(&Orbbec::threadRun, &orbbec);
-	std::thread commendThread(commend_thread, &orbbec);
+	//orbbec->setRGBResolution(Orbbec::Resolution::SXGA);
+
+	sensorThread = std::thread(&Orbbec::threadRun, orbbec, &mtx);
+	std::thread commendThread(commend_thread, orbbec, &mtx);
 	/*std::thread forTest([&]() {
 		Sleep(10000);
 		IPC ipc("test.exe");
@@ -159,11 +164,8 @@ int main(int argc, char** argv)
 			IPC ipc("takePictureForCalibration.exe");
 			RGBDcamera *data2 = ipc.connect<RGBDcamera>("Orbbec.exe");
 
-			cv::Mat img(data2->colorHeight, data2->colorWidth, CV_8UC3);
-			cv::Mat depth(data2->depthHeight, data2->depthWidth, CV_16UC1);
-			cv::Mat depth1_8U(data2->depthHeight, data2->depthWidth, CV_8UC1);
 			cv::Mat canvas;
-
+			//cv::namedWindow("RGB", cv::WINDOW_NORMAL);
 			char key = 0;
 			double etime = 0.0;
 			int waiting_time = 10;
@@ -173,6 +175,10 @@ int main(int argc, char** argv)
 			std::string path = "../data/depth_calibration/";
 			while (key != 27)
 			{
+				cv::Mat img(data2->colorHeight, data2->colorWidth, CV_8UC3);
+				cv::Mat depth(data2->depthHeight, data2->depthWidth, CV_16UC1);
+				cv::Mat depth1_8U(data2->depthHeight, data2->depthWidth, CV_8UC1);
+
 				int64 t1 = cv::getTickCount();
 				
 				memcpy(img.data, data2->colorData[0], sizeof(uchar)*data2->colorHeight*data2->colorWidth * 3);
@@ -181,16 +187,17 @@ int main(int argc, char** argv)
 				depth.convertTo(depth1_8U, CV_8UC1, 0.025, -25);
 				cv::cvtColor(depth1_8U, depth1_8U, CV_GRAY2BGR);
 
-				cv::hconcat(img, depth1_8U, canvas);
-				cv::imshow("RGB and Depth maps", canvas);
+				//cv::hconcat(img, depth1_8U, canvas);
+				cv::imshow("RGB", img);
+				cv::imshow("Depth", depth1_8U);
 
 				int64 t2 = cv::getTickCount();
 				etime = (double)(t2 - t1) / cv::getTickFrequency()*1000.0;
 				//std::cout << "Elapsed time: " << etime << std::endl;
-				waiting_time = 180 - etime;
+				waiting_time = (int)std::round(180.0 - etime);
 				waiting_time = waiting_time < 0 ? 1 : waiting_time;
 				key = cv::waitKey(waiting_time);
-
+				
 				if (key == ' ')
 				{
 					char filename[256];
@@ -305,7 +312,7 @@ int main(int argc, char** argv)
 
 					cv::Mat registerMat;
 					cv::Mat caliDepthHistogram(480, 640, CV_16UC1);
-					orbbec.getDepthHistogram(depth[i], caliDepthHistogram);
+					orbbec->getDepthHistogram(depth[i], caliDepthHistogram);
 					cv::addWeighted(caliDepthHistogram, (double)(5 / 10.0), img[i], (double)(5 / 10.0), 0.5, registerMat);
 					cv::imshow("registerMat " + std::string(data2->camera_order[i]), registerMat);
 				}
@@ -330,16 +337,13 @@ int main(int argc, char** argv)
 	//forTest.join();
 		
 	commendThread.join();
+	orbbec->stop();
+	delete orbbec;
 
-	for (int i = 0; i < num_of_sensor; i++)
-	{
-		orbbec.stopRGBorIRstream(i);
-		orbbec.stopDepthstream(i);
-	}
 	return 0;
 }
 
-void commend_thread(Orbbec* orbbec)
+void commend_thread(Orbbec* orbbec, std::mutex *m_mtx)
 {
 	while (1)
 	{
@@ -349,24 +353,45 @@ void commend_thread(Orbbec* orbbec)
 
 		if (commend == "h" || commend == "help")
 		{
-			std::cout << "[img]: toggle img on off [now: ";
+			std::cout << "[img(i)]: toggle img on off [now: ";
 			if (orbbec->drawImageEnabled()) std::cout << "enabled]" << std::endl;
 			else std::cout << "disabled]" << std::endl;
 
-			std::cout << "[rgb]: toggle rgb mode or ir mode [now: "; 
+			std::cout << "[rgb or ir]: toggle rgb mode or ir mode [now: "; 
 			if (orbbec->IRenabled()) std::cout << "IR mode]" << std::endl; 
 			else std::cout << "RGB mode]" << std::endl;
 
-			std::cout << "[reg]: toggle registraion mode [now: ";
+			std::cout << "[reg(r)]: toggle registraion mode [now: ";
 			if (orbbec->regisrationEnabled()) std::cout << "enabled]" << std::endl; 
 			else std::cout << "disabled]" << std::endl;
 
-			std::cout << "[overlap]: toggle draw rgb and depth overlap [now: ";
+			std::cout << "[overlap(o)]: toggle draw rgb and depth overlap [now: ";
 			if (orbbec->overlapEnabled())std::cout << "enabled]" << std::endl;
 			else std::cout << "disabled]" << std::endl;
+
+			std::cout << "[rgb resolution]: select resoltion rgb image [now: ";
+			std::string res;
+			switch (orbbec->getRGBResolution())
+			{
+			case Orbbec::Resolution::QVGA:
+				res = "QVGA(320x240)";
+				break;
+			case Orbbec::Resolution::VGA:
+				res = "VGA(640x480)";
+				break;
+			case Orbbec::Resolution::SXGA:
+				res = "SXGA(1280x960)";
+				break;
+			default:
+				res = "NONE";
+				break;
+			}
+			std::cout << res << "]" << std::endl;
+			std::cout << "r0: QVGA, r1: VGA, r2: SXGA" << std::endl;
+
 		}
 
-		if (commend == "img")
+		if (commend == "img" || commend == "i")
 		{
 			orbbec->enableDrawImage(!orbbec->drawImageEnabled());
 		}
@@ -390,9 +415,26 @@ void commend_thread(Orbbec* orbbec)
 		{
 			orbbec->enableOverlap(!orbbec->overlapEnabled());
 		}
+
+		if (commend == "r0") {
+			m_mtx->lock();
+			orbbec->setRGBResolution(Orbbec::Resolution::QVGA);
+			m_mtx->unlock();
+		}
+		if (commend == "r1") {
+			m_mtx->lock();
+			orbbec->setRGBResolution(Orbbec::Resolution::VGA);
+			m_mtx->unlock();
+		}
+		if (commend == "r2") {
+			m_mtx->lock();
+			orbbec->setRGBResolution(Orbbec::Resolution::SXGA);
+			m_mtx->unlock();
+		}
 		
 		if (commend == "q" || commend == "exit" || commend == "Exit")
 		{
+			orbbec->stop();
 			break;
 		}
 	}
