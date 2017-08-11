@@ -391,13 +391,15 @@ bool Orbbec::getData()
 
 	
 	if (m_bOverlap) {
-		if(m_depthResolution == m_RGBResolution)
 			for (int i = 0; i < num_of_cameras; i++)
 			{
 				cv::Mat canvas;
-				cv::Mat depth(m_pData->depthHeight, m_pData->depthWidth, CV_16UC1, m_pData->depthData[i]);
-				cv::Mat color(m_pData->colorHeight, m_pData->colorWidth, CV_8UC3, m_pData->colorData[i]);
-				cv::Mat caliDepthHistogram(m_pData->colorHeight, m_pData->colorWidth, CV_16UC1);
+				cv::Mat depth = cv::Mat(depth_height, depth_width, CV_16UC1, m_pData->depthData[i]).clone();
+				cv::Mat color(rgb_height, rgb_width, CV_8UC3, m_pData->colorData[i]);
+				
+				if (m_depthResolution != m_RGBResolution)
+					cv::resize(depth, depth, cv::Size(rgb_width, rgb_height));
+				cv::Mat caliDepthHistogram(depth_height, depth_width, CV_16UC1);
 				getDepthHistogram(depth, caliDepthHistogram);
 				cv::addWeighted(caliDepthHistogram, (double)(5 / 10.0), color, (double)(5 / 10.0), 0.5, canvas);
 				cv::imshow("overlap img " + std::string(m_pData->camera_order[i]), canvas);
