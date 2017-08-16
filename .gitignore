@@ -288,10 +288,12 @@ __pycache__/
 *.xsd.cs
 
 # include file
-include/**
+include/*
+!include/common/
+include/common/*
 !include/common/camera_matrix.h
 !include/common/camera_matrix.cpp
 !include/common/functions.h
 
-data/**
+data/*
 !data/*.yml
