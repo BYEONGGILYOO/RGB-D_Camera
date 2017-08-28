@@ -487,7 +487,7 @@ struct LocalizerData
 struct RGBDcamera {
 	bool registration_enable;
 
-	unsigned char colorData[4][640 * 480 * 3 * 2];
+	unsigned char colorData[4][1280 * 960 * 3];
 	unsigned short depthData[4][640 * 480 * 1];
 	unsigned short irData[4][640 * 480 * 1];
 
@@ -513,7 +513,7 @@ struct RGBDcamera {
 	{
 		registration_enable = true;
 
-		memset(colorData, 0, sizeof(unsigned char) * 4 * 640 * 480 * 3);
+		memset(colorData, 0, sizeof(unsigned char) * 4 * 1280 * 960 * 3);
 		memset(depthData, 0, sizeof(unsigned short) * 4 * 640 * 480);
 		memset(irData, 0, sizeof(unsigned short) * 4 * 640 * 480);
 
@@ -539,7 +539,7 @@ struct RGBDcamera {
 	RGBDcamera(const RGBDcamera& rgbd)
 	{
 		registration_enable = rgbd.registration_enable;
-		memcpy(colorData, rgbd.colorData, sizeof(unsigned char) * 4 * 640 * 480 * 3);
+		memcpy(colorData, rgbd.colorData, sizeof(unsigned char) * 4 * 1280 * 960 * 3);
 		memcpy(depthData, rgbd.depthData, sizeof(unsigned short) * 4 * 640 * 480);
 		memcpy(irData, rgbd.irData, sizeof(unsigned short) * 4 * 640 * 480);
 

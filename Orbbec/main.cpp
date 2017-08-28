@@ -14,7 +14,9 @@
 #include <mutex>
 
 void commend_thread(Orbbec* orbbec, std::mutex* mtx);
-std::thread sensorThread;
+void takePictureForCalibration(Orbbec* orbbec, std::mutex* mtx);
+bool bTPC_flag;
+
 int main(int argc, char** argv)
 {
 	IPC ipc("Orbbec.exe");
@@ -25,195 +27,15 @@ int main(int argc, char** argv)
 	ipc.start("Orbbec.exe");
 
 	Orbbec* orbbec = new Orbbec(rgbdData, &ipc);
-	//orbbec.m_bIRon = true;
 	orbbec->initialize("..\\data\\");
 		
 	int num_of_sensor = rgbdData->num_of_senseor;
 	orbbec->enableRegistration(true);
-	/*for (int i = 0; i < num_of_sensor; i++)
-	{
-		orbbec->startDepthstream(i);
-		orbbec->startRGBorIRstream(i);
-	}*/
-
 	//orbbec->setRGBResolution(Orbbec::Resolution::SXGA);
 
-	sensorThread = std::thread(&Orbbec::threadRun, orbbec, &mtx);
-	std::thread commendThread(commend_thread, orbbec, &mtx);
-	/*std::thread forTest([&]() {
-		Sleep(10000);
-		IPC ipc("test.exe");
-		RGBDcamera *nData = ipc.connect<RGBDcamera>("Orbbec.exe");
-		
-		int nCam = nData->num_of_senseor;
-
-		RGBD_Intrinsics colorIntrin, depthIntrin;
-		colorIntrin.ppx = nData->colorK[0][0]; colorIntrin.ppy = nData->colorK[0][1]; colorIntrin.fx = nData->colorK[0][2]; colorIntrin.fy = nData->colorK[0][3];
-		memcpy(colorIntrin.coeffs, nData->colorCoeffs[0], sizeof(float) * 5);
-		depthIntrin.ppx = nData->depthK[0][0]; depthIntrin.ppy = nData->depthK[0][1]; depthIntrin.fx = nData->depthK[0][2]; depthIntrin.fy = nData->depthK[0][3];
-		memcpy(depthIntrin.coeffs, nData->depthCoeffs[0], sizeof(float) * 5);
-
-		RGBD_Extrinsics extrinsic;
-		memcpy(extrinsic.rotation, nData->depth_to_color_R[0], sizeof(float) * 9);
-		memcpy(extrinsic.translation, nData->depth_to_color_tvec[0], sizeof(float) * 3);
-		
-		for (int i = 0; i < 3; i++) {
-			for (int j = 0; j < 3; j++)
-				std::cout << extrinsic.rotation[i * 3 + j] << ", ";
-			std::cout << std::endl;
-		}
-		for (int i = 0; i < 3; i++)
-			std::cout << extrinsic.translation[i] << ", ";
-		std::cout << std::endl;
-		
-		int a = 0;
-
-		cv::Mat depthK = cv::Mat::eye(4, 4, CV_32FC1);
-		depthK.at<float>(0, 0) = depthIntrin.fx; depthK.at<float>(0, 2) = depthIntrin.ppx;
-		depthK.at<float>(1, 1) = depthIntrin.fy; depthK.at<float>(1, 2) = depthIntrin.ppy;
-		cv::Mat colorK = cv::Mat::eye(4, 4, CV_32FC1);
-		colorK.at<float>(0, 0) = colorIntrin.fx; colorK.at<float>(0, 2) = colorIntrin.ppx;
-		colorK.at<float>(1, 1) = colorIntrin.fy; colorK.at<float>(1, 2) = colorIntrin.ppy;
-		cv::Mat d2c = cv::Mat::eye(4, 4, CV_32FC1);
-		d2c.at<float>(0, 0) = extrinsic.rotation[0]; d2c.at<float>(0, 1) = extrinsic.rotation[1]; d2c.at<float>(0, 2) = extrinsic.rotation[2];
-		d2c.at<float>(1, 0) = extrinsic.rotation[3]; d2c.at<float>(1, 1) = extrinsic.rotation[4]; d2c.at<float>(1, 2) = extrinsic.rotation[5];
-		d2c.at<float>(2, 0) = extrinsic.rotation[6]; d2c.at<float>(2, 1) = extrinsic.rotation[7]; d2c.at<float>(2, 2) = extrinsic.rotation[8];
-		d2c.at<float>(0, 3) = extrinsic.translation[0]; d2c.at<float>(1, 3) = extrinsic.translation[1]; d2c.at<float>(2, 3) = extrinsic.translation[2];
-		cv::Mat allMat = colorK*d2c*depthK.inv();
-		std::cout << allMat << std::endl;
-
-		while (1)
-		{
-			if (a++ < 100) {
-				Sleep(10);
-				continue;
-			}
-			cv::Mat tmp1(nData->colorHeight, nData->colorWidth, CV_8UC3);
-			cv::Mat tmp2(nData->depthHeight, nData->depthWidth, CV_16UC1);
-			cv::Mat tmp3(nData->colorHeight, nData->colorWidth, CV_16UC1, cv::Scalar(0));
-			cv::Mat d2c(nData->colorHeight, nData->colorWidth, CV_16UC1, cv::Scalar(0));
-			cv::Mat ee(nData->colorHeight, nData->colorWidth, CV_8UC3, cv::Scalar(0));
-			cv::Mat ff(nData->colorHeight, nData->colorWidth, CV_8UC3, cv::Scalar(0));
-
-			memcpy(tmp1.data, nData->colorData[0], sizeof(uchar) * 640 * 480 * 3);
-			memcpy(tmp2.data, nData->depthData[0], sizeof(ushort) * 640 * 480);
-			//std::cout << tmp1 << std::endl;
-			float z;
-			uint16_t d, u_rgb, v_rgb;
-			for (int y = 0; y < tmp2.rows; y++)
-				for (int x = 0; x < tmp2.cols; x++)
-				{
-					ushort depth_val = tmp2.at<ushort>(y, x);
-					float depth_in_meters = depth_val * 1.f;
-					if (depth_val == 0)
-						continue;
-					z = (float)depth_val;
-					u_rgb = (uint16_t)(allMat.at<float>(0, 0) * (double)x + allMat.at<float>(0, 1) * (double)y + allMat.at<float>(0, 2) + allMat.at<float>(0, 3) / z);
-					v_rgb = (uint16_t)(allMat.at<float>(1, 0) * (double)x + allMat.at<float>(1, 1) * (double)y + allMat.at<float>(1, 2) + allMat.at<float>(1, 3) / z);
-					if (u_rgb < 0 || u_rgb >= tmp2.cols || v_rgb < 0 || v_rgb >= tmp2.rows)continue;
-					uint16_t *val = (uint16_t*)tmp3.ptr<uchar>(v_rgb, u_rgb);
-					*val = depth_val;
-					ee.at<cv::Vec3b>(y, x) = tmp1.at<cv::Vec3b>(v_rgb, u_rgb);
-
-					float2 depth_pixel = { (float)x, (float)y };
-					float3 depth_point = depthIntrin.deproject(depth_pixel, depth_in_meters);
-					float3 color_point = extrinsic.transform(depth_point);
-					float2 color_pixel = colorIntrin.project(color_point);
-
-					const int cx = (int)std::round(color_pixel.x), cy = (int)std::round(color_pixel.y);
-
-					if (cx < 0 || cy < 0 || cx >= tmp1.cols || cy >= tmp1.rows) {
-						//std::cout << cx << ", " << cy << std::endl;
-						continue;
-					}
-					else
-					{
-						//std::cout << cx << ", " << cy << std::endl;
-						//std::cout << (cv::Vec3b)tmp1.at<cv::Vec3b>(cy, cx) << std::endl;
-						//tmp3.at<cv::Vec3b>(y, x) = tmp1.at<cv::Vec3b>(cy, cx);
-						uint16_t *va = (uint16_t*)d2c.ptr<uchar>(cy, cx);
-						*va = depth_val;
-						ff.at<cv::Vec3b>(y, x) = tmp1.at<cv::Vec3b>(cy, cx);
-					}
-				}
-			
-			cv::Mat tmp4,tmp5;
-			tmp2.convertTo(tmp4, CV_8U, 0.05, -25);
-			cv::imshow("color", tmp1);
-			cv::imshow("depth", tmp4);
-			tmp3.convertTo(tmp5, CV_8UC1, 0.05, -25);
-			cv::cvtColor(tmp5, tmp5, CV_GRAY2BGR);
-			cv::imshow("color_2_depth", tmp5*0.5 + tmp1*0.7);
-			cv::Mat test;
-			d2c.convertTo(test, CV_8UC1, 0.05, -25);
-			cv::cvtColor(test, test, CV_GRAY2BGR);
-			cv::imshow("color_2_depth2", test*0.5 + tmp1*0.7);
-			cv::imshow("ee", ee);
-			cv::imshow("ff", ff);
-			//cv::imshow("ir", Orbbec.ir);
-
-			char key = cv::waitKey(10);
-			if (key == 'q')
-				break;
-		}
-		
-	});*/
-
-	if (1) {
-		std::thread takePictureForCalibration([&]() {
-			IPC ipc("takePictureForCalibration.exe");
-			RGBDcamera *data2 = ipc.connect<RGBDcamera>("Orbbec.exe");
-
-			cv::Mat canvas;
-			//cv::namedWindow("RGB", cv::WINDOW_NORMAL);
-			char key = 0;
-			double etime = 0.0;
-			int waiting_time = 10;
-			int frm_cnt = 0;
-			std::string cam_pos = std::string(data2->camera_order[0]);
-			std::cout << cam_pos << std::endl;
-			std::string path = "../data/depth_calibration/";
-			while (key != 27)
-			{
-				cv::Mat img(data2->colorHeight, data2->colorWidth, CV_8UC3);
-				cv::Mat depth(data2->depthHeight, data2->depthWidth, CV_16UC1);
-				cv::Mat depth1_8U(data2->depthHeight, data2->depthWidth, CV_8UC1);
-
-				int64 t1 = cv::getTickCount();
-				
-				memcpy(img.data, data2->colorData[0], sizeof(uchar)*data2->colorHeight*data2->colorWidth * 3);
-				memcpy(depth.data, data2->depthData[0], sizeof(ushort)*data2->depthHeight*data2->depthWidth);
-
-				depth.convertTo(depth1_8U, CV_8UC1, 0.025, -25);
-				cv::cvtColor(depth1_8U, depth1_8U, CV_GRAY2BGR);
-
-				//cv::hconcat(img, depth1_8U, canvas);
-				cv::imshow("RGB", img);
-				cv::imshow("Depth", depth1_8U);
-
-				int64 t2 = cv::getTickCount();
-				etime = (double)(t2 - t1) / cv::getTickFrequency()*1000.0;
-				//std::cout << "Elapsed time: " << etime << std::endl;
-				waiting_time = (int)std::round(180.0 - etime);
-				waiting_time = waiting_time < 0 ? 1 : waiting_time;
-				key = cv::waitKey(waiting_time);
-				
-				if (key == ' ')
-				{
-					char filename[256];
-					sprintf(filename, "%s_rgb_%04d.png", cam_pos.c_str(), frm_cnt);
-					cv::imwrite(path + filename, img);
-					std::cout << filename << " written" << std::endl;
-					sprintf(filename, "%s_depth_%04d.png", cam_pos.c_str(), frm_cnt);
-					imwrite(path + filename, depth);
-					std::cout << filename << " written" << std::endl;
-					frm_cnt++;
-				}
-			}
-		});
-		takePictureForCalibration.join();
-	}
-
+	std::thread sensorThread(&Orbbec::threadRun, orbbec, &mtx);
+	std::thread commendThread(commend_thread, orbbec, &mtx);	
+	std::thread takePictureForCalibrationThread(takePictureForCalibration, orbbec, &mtx);
 	if (0)
 	{
 		std::thread registration([&]()
@@ -334,9 +156,8 @@ int main(int argc, char** argv)
 	}
 
 	sensorThread.join();
-	//forTest.join();
-		
 	commendThread.join();
+
 	orbbec->stop();
 	delete orbbec;
 
@@ -345,6 +166,8 @@ int main(int argc, char** argv)
 
 void commend_thread(Orbbec* orbbec, std::mutex *m_mtx)
 {
+	bool tpThreadFlag = false;
+
 	while (1)
 	{
 		std::cout << "->";
@@ -389,6 +212,10 @@ void commend_thread(Orbbec* orbbec, std::mutex *m_mtx)
 			std::cout << res << "]" << std::endl;
 			std::cout << "r0: QVGA, r1: VGA, r2: SXGA" << std::endl;
 
+			std::cout << "[TakePictureThread(t)]: toggle take picture [now: ";
+			if (tpThreadFlag) std::cout << "enabled]" << std::endl;
+			else std::cout << "disabled]" << std::endl;
+
 		}
 
 		if (commend == "img" || commend == "i")
@@ -398,12 +225,9 @@ void commend_thread(Orbbec* orbbec, std::mutex *m_mtx)
 		
 		if (commend == "rgb" || commend == "ir")
 		{
-			/*orbbec->stop();
 			orbbec->enableIR(!orbbec->IRenabled());
 			for (int i = 0; i < orbbec->getNumOfCameras(); i++)
 				orbbec->openRGBorIR(i);
-			sensorThread = std::thread(&Orbbec::threadRun, orbbec);
-			sensorThread.join();*/
 		}
 
 		if (commend == "reg" || commend == "r")
@@ -432,10 +256,78 @@ void commend_thread(Orbbec* orbbec, std::mutex *m_mtx)
 			m_mtx->unlock();
 		}
 		
+		if (commend == "t")
+		{
+			if (!bTPC_flag)
+				bTPC_flag = true;
+			else
+				bTPC_flag = false;
+		}
+
 		if (commend == "q" || commend == "exit" || commend == "Exit")
 		{
 			orbbec->stop();
 			break;
+		}
+	}
+}
+
+void takePictureForCalibration(Orbbec * orbbec, std::mutex * mtx)
+{
+	IPC ipc("takePictureForCalibration.exe");
+	RGBDcamera *data2 = ipc.connect<RGBDcamera>("Orbbec.exe");
+
+	cv::Mat canvas;
+
+	char key = 0;
+	double etime = 0.0;
+	int waiting_time = 10;
+	int frm_cnt = 0;
+	std::string cam_pos = std::string(data2->camera_order[0]);
+	std::cout << cam_pos << std::endl;
+	std::string path = "../data/depth_calibration/";
+
+	while(1)
+	{
+		if (key == 27)
+			break;
+
+		if (bTPC_flag)
+		{			
+			cv::Mat img(data2->colorHeight, data2->colorWidth, CV_8UC3);
+			cv::Mat depth(data2->depthHeight, data2->depthWidth, CV_16UC1);
+			cv::Mat depth1_8U(data2->depthHeight, data2->depthWidth, CV_8UC1);
+
+			int64 t1 = cv::getTickCount();
+
+			memcpy(img.data, data2->colorData[0], sizeof(uchar)*data2->colorHeight*data2->colorWidth * 3);
+			memcpy(depth.data, data2->depthData[0], sizeof(ushort)*data2->depthHeight*data2->depthWidth);
+
+			depth.convertTo(depth1_8U, CV_8UC1, 0.025, -25);
+			cv::cvtColor(depth1_8U, depth1_8U, CV_GRAY2BGR);
+
+			//cv::hconcat(img, depth1_8U, canvas);
+			cv::imshow("RGB", img);
+			cv::imshow("Depth", depth1_8U);
+
+			int64 t2 = cv::getTickCount();
+			etime = (double)(t2 - t1) / cv::getTickFrequency()*1000.0;
+			//std::cout << "Elapsed time: " << etime << std::endl;
+			waiting_time = (int)std::round(180.0 - etime);
+			waiting_time = waiting_time < 0 ? 1 : waiting_time;
+			key = cv::waitKey(waiting_time);
+
+			if (key == ' ')
+			{
+				char filename[256];
+				sprintf(filename, "%s_rgb_%04d.png", cam_pos.c_str(), frm_cnt);
+				cv::imwrite(path + filename, img);
+				std::cout << filename << " written" << std::endl;
+				sprintf(filename, "%s_depth_%04d.png", cam_pos.c_str(), frm_cnt);
+				imwrite(path + filename, depth);
+				std::cout << filename << " written" << std::endl;
+				frm_cnt++;
+			}
 		}
 	}
 }

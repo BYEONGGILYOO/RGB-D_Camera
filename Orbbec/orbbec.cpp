@@ -415,42 +415,57 @@ bool Orbbec::getData()
 	{
 		if (!m_bIRon)
 		{
+			cv::Mat canvas;
 			for (int i = 0; i < num_of_cameras; i++)
 			{
-				cv::Mat canvas;
-				cv::imshow("rgb_" + std::string(this->cam_order[i]), cv::Mat(this->rgb_height, this->rgb_width, CV_8UC3, m_pData->colorData[i]));
-				cv::destroyWindow("ir_" + std::string(this->cam_order[i]));
+				cv::Mat tmpRGB(this->rgb_height, this->rgb_width, CV_8UC3, m_pData->colorData[i]);
+				if (i == 0)
+					canvas = tmpRGB.clone();
+				else
+					cv::hconcat(canvas, tmpRGB, canvas);
 			}
+			cv::imshow("rgb", canvas);
+			cv::destroyWindow("ir");
 		}
 		else
 		{
+			cv::Mat canvas;
 			for (int i = 0; i < num_of_cameras; i++)
 			{
 				cv::Mat ir(this->depth_height, this->depth_width, CV_16UC1, m_pData->irData[i]);
-				cv::Mat canvas;
+				cv::Mat tmpIR;
 				double min, max;
 				cv::minMaxLoc(ir, &min, &max);
-				ir.convertTo(canvas, CV_8UC1, 1 / max * 255, 0);
-				cv::imshow("ir_" + std::string(this->cam_order[i]), canvas);
-				cv::destroyWindow("rgb_" + std::string(this->cam_order[i]));
+				ir.convertTo(tmpIR, CV_8UC1, 1 / max * 255, 0);
+				if (i == 0)
+					canvas = tmpIR.clone();
+				else
+					cv::hconcat(canvas, tmpIR, canvas);
 			}
+			cv::imshow("ir", canvas);
+			cv::destroyWindow("rgb");
 		}
+		cv::Mat canvas;
 		for (int i = 0; i < num_of_cameras; i++)
 		{
 			cv::Mat depth(this->depth_height, this->depth_width, CV_16UC1, m_pData->depthData[i]);
-			cv::Mat canvas;
-			depth.convertTo(canvas, CV_8UC1, 0.05, -25);
-			cv::imshow("depth_" + std::string(m_pData->camera_order[i]), canvas);
+			cv::Mat tmpDepth;
+			depth.convertTo(tmpDepth, CV_8UC1, 0.05, -25);
+			if (i == 0)
+				canvas = tmpDepth.clone();
+			else
+				cv::hconcat(canvas, tmpDepth, canvas);
 		}
+		cv::imshow("depth", canvas);
 		cv::waitKey(10);
 	}
 	else
 	{
 		for (int i = 0; i < num_of_cameras; i++)
 		{
-			cv::destroyWindow("rgb_" + std::string(m_pData->camera_order[i]));
-			cv::destroyWindow("ir_" + std::string(m_pData->camera_order[i]));
-			cv::destroyWindow("depth_" + std::string(m_pData->camera_order[i]));
+			cv::destroyWindow("rgb");
+			cv::destroyWindow("ir");
+			cv::destroyWindow("depth");
 		}
 	}
 	
