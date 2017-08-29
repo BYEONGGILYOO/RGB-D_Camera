@@ -24,7 +24,6 @@ int main(int argc, char** argv)
 	std::mutex mtx;
 
 	Sleep(300);
-	ipc.start("Orbbec.exe");
 
 	Orbbec* orbbec = new Orbbec(rgbdData, &ipc);
 	orbbec->initialize("..\\data\\");
@@ -222,6 +221,7 @@ void takePictureForCalibration(Orbbec * orbbec, std::mutex * mtx)
 		{
 			cv::destroyWindow("RGB");
 			cv::destroyWindow("Depth");
+			Sleep(1000);
 		}
 	}
 }

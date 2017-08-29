@@ -1,73 +1,131 @@
 #pragma once
 
-#define MAX_GOAL_NUMBER 100
-
+#include <string>
 #include <windows.h>
 #include <sys/timeb.h>
 #include <mutex>
 #include <map>
 #include <shellapi.h>
+#include <direct.h>
+#include <fstream>
+#include <vector>
+
+#include "opencv2\opencv.hpp"
+
 #pragma comment(lib, "Shell32.lib")
-
-struct function_cummunication
-{
-	/////////////////////////input////////////////////////////////
-
-	// 목표 FPS. 
-	int target_hz = 30;
-
-	/////////////////////////output////////////////////////////////
-
-	//exe path
-	char exe_path[512];
-
-	//exit 함수가 콜될때 마다 시간을 체크
-	_timeb last_call;
-
-	//exit 가 다시 호출되는데 걸리는 시간을 측정
-	int ms = 0;
-
-	//(ms + sleep time) 이용해서 FPS 를 계산
-	//ms 가 아무리 빨라도 target_hz 만큼 조절된다.
-	float actual_hz = 0;
-
-	//navi engine 이 함수를 켜고 끌 수 있음. 
-	//타의로 들어오는 함수구동 시그널:1, 자의로 구동되는 시그널:2
-	int trigger = 0; // 1:triggering by eng, 2:triggering by itself
-
-					 //함수 구동 시그널을 받았는지 체크됨. 
-					 //ex) trigger = 1, fire = 0 -> 엔진이 구동 시그널을 줬지만 함수 구동 안됨.
-					 //ex) trigger = 1, fire = 1 -> 엔진이 구동 시그널을 줬고, 함수 구동 됨.
-	int fire = 0;
-};
-
 
 class IPC
 {
+public:
+	std::string owner_name;
+
 private:
-	struct function
+	struct IPC_state
 	{
-		function_cummunication *fc;
+		// target FPS. 
+		float target_hz;
 
-		int MMF_state = 0; // -1: disable, 0 : disconnected, 1: connected, 2: virtual MMF
-		int data_size = 0;
-		std::string IPC_name;
+		//controled FPS.
+		float actual_hz;
+
+		//actaul computing time
+		//it will be checked by waitIPC function
+		int ms;
+
+		//exe path
+		char exe_path[512];
+
+		//for checking owner
+		_timeb last_owner_call;
+
+		//for checking connection
+		_timeb last_connect_call;
+
+		//for controling hz
+		_timeb iteration_call;
+
+		bool exit_commend;
+
+		IPC_state::IPC_state()
+			: target_hz(30.0f), actual_hz(0.0f), ms(0),
+			exit_commend(false)
+		{};
+	};
+	struct IPC_connection_info
+	{
 		HANDLE hMapFile;
+		IPC_state* state;
 		LPCTSTR pBuf;
+		unsigned int data_size;
+		bool is_initialized = true;
+
+		IPC_connection_info::IPC_connection_info()
+			: hMapFile(NULL), state(nullptr), data_size(0)
+		{};
+		bool isOpen(void) { return hMapFile != NULL; };
+		bool isConnected(void) { return pBuf != nullptr; };
 	};
-	struct ModuleInfo
+
+	std::mutex IPC_list_mutex;
+	unsigned int sleep_ms_time;
+	std::thread* owner_thread;
+	IPC_connection_info* own_IPC;
+
+	std::map<std::string, IPC_connection_info*> IPC_list;
+
+	typedef void(*CallBack_Function)(void* Userdata);
+	std::vector<std::pair<CallBack_Function, void*>> callback_functions;
+
+	void owner_action(void)
 	{
-		_timeb last_call;
+		while (!own_IPC->state->exit_commend)
+		{
+			_ftime64_s(&own_IPC->state->last_owner_call);
+
+			IPC_list_mutex.lock();
+			std::map<std::string, IPC_connection_info*>::iterator i = IPC_list.begin();
+			for (; i != IPC_list.end(); i++) if (i->first != owner_name)
+				_ftime64_s(&i->second->state->last_connect_call);
+			IPC_list_mutex.unlock();
+
+			Sleep(sleep_ms_time);
+		}
+
+		for (int i = 0; i < (int)callback_functions.size(); i++)
+			callback_functions[i].first(callback_functions[i].second);
+
+		own_IPC->state->exit_commend = false;
+
+		exit(EXIT_SUCCESS);
 	};
 
-	std::map<std::string, function> f_list;
-	std::string own_name;
-
-	int openMMF(std::map<std::string, function>::iterator &_func)
+	//linking pbuf and IPC_state pointer 
+	bool connectBuf(std::map<std::string, IPC_connection_info*>::iterator &_func)
 	{
-		int data_size = (int)sizeof(function_cummunication) + _func->second.data_size;
+		if (_func->second->hMapFile == NULL) return false;
 
-		_func->second.hMapFile = CreateFileMapping(
+		_func->second->pBuf = (LPTSTR)MapViewOfFile(_func->second->hMapFile, // handle to map object
+			FILE_MAP_ALL_ACCESS,  // read/write permission
+			0,
+			0,
+			_func->second->data_size);
+
+		if (_func->second->pBuf == NULL)
+		{
+			CloseHandle(_func->second->hMapFile);
+			return false;
+		}
+
+		_func->second->state = (IPC_state*)_func->second->pBuf;
+		return true;
+	};
+
+	//allocate MMF and connect data Buf
+	bool createMMF(std::map<std::string, IPC_connection_info*>::iterator &_func)
+	{
+		unsigned int data_size = (unsigned int)sizeof(IPC_state) + _func->second->data_size;
+
+		_func->second->hMapFile = CreateFileMapping(
 			INVALID_HANDLE_VALUE,    // use paging file
 			NULL,                    // default security
 			PAGE_READWRITE,          // read/write access
@@ -75,162 +133,293 @@ private:
 			data_size,                // maximum object size (low-order DWORD)
 			_func->first.c_str());                 // name of mapping object
 
-		if (_func->second.hMapFile == NULL)
-		{
-			printf("Could not create file mapping object (%s).\n", _func->first.c_str());
-			_func->second.MMF_state = 0;
-			return 0;
-		}
-		return 1;
-	};
-public:
-	IPC::IPC()
-	{
+		if (_func->second->hMapFile == NULL) return false;
 
-	};
-	IPC::IPC(std::string _own_name)
-	{
-		own_name = _own_name;
-	};
-	IPC::~IPC()
-	{
-		std::map<std::string, function>::iterator finder = f_list.find(own_name);
-		if (finder != f_list.end()) {
-			if (finder->second.MMF_state > 0)
-			{
-				finder->second.fc->trigger = 0;
-				finder->second.fc->fire = 0;
+		if (!openMMF(_func)) return false;
 
-				UnmapViewOfFile(finder->second.pBuf);
-				CloseHandle(finder->second.hMapFile);
-			}
-		}
+		std::memcpy(_func->second->state, &IPC_state(), sizeof(IPC_state));
+
+		_func->second->is_initialized = false;
+
+		return true;
 	};
 
-	///특정 프로세서와 연결을 만들고 data type 을 정해주는 경우 포인터를 연결시킴
-	int connect(std::string f_name, int _data_size = 0)
+	//accece MMF and connect data Buf
+	bool openMMF(std::map<std::string, IPC_connection_info*>::iterator &_func)
 	{
-		int openMMF_flag = 0;
-		std::map<std::string, function>::iterator finder = f_list.find(f_name);
-		if (finder != f_list.end())
-		{
-			if (finder->second.MMF_state == 1) return 1;
-		}
-		else
-		{
-			f_list.insert(std::pair<std::string, function>(f_name, function()));
-			finder = f_list.find(f_name);
-		}
-
-		finder->second.data_size = _data_size;
-		int data_size = (int)sizeof(function_cummunication) + finder->second.data_size;
-
-		finder->second.IPC_name = f_name;
-
-		finder->second.hMapFile = OpenFileMapping(
+		_func->second->hMapFile = OpenFileMapping(
 			FILE_MAP_ALL_ACCESS,   // read/write access
 			FALSE,                 // do not inherit the name
-			finder->second.IPC_name.c_str());
+			_func->first.c_str());
 
-		if (finder->second.hMapFile == NULL)
-		{
-			finder->second.MMF_state = -1;
+		if (_func->second->hMapFile == NULL) return false;
 
-			if (f_name == own_name)
-			{
-				printf("Open ipc (%s).\n", finder->second.IPC_name.c_str());
-				if (openMMF(finder) == 0) return 0;
-				else openMMF_flag = 1;
-			}
-			else
-			{
-				printf("Could not open ipc (%s).\n", finder->second.IPC_name.c_str());
-				return 0;
-			}
-		}
-		else printf("Connection success (%s).\n", finder->second.IPC_name.c_str());
+		if (!connectBuf(_func)) return false;
 
-		finder->second.pBuf = (LPTSTR)MapViewOfFile(finder->second.hMapFile, // handle to map object
-			FILE_MAP_ALL_ACCESS,  // read/write permission
-			0,
-			0,
-			data_size);
-
-		if (finder->second.pBuf == NULL)
-		{
-			DWORD dw = GetLastError();
-			TCHAR* message = nullptr;
-			FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ALLOCATE_BUFFER,
-				nullptr,
-				dw,
-				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-				(TCHAR *)&message,
-				0,
-				nullptr);
-
-			printf("Could not map view of file (%s).\n", finder->second.IPC_name.c_str());
-			printf("%s\n", message);
-			CloseHandle(finder->second.hMapFile);
-			finder->second.MMF_state = -1;
-			return 0;
-		}
-
-		finder->second.MMF_state = 1;
-
-		if (openMMF_flag == 1)
-		{// initialize itself
-			function_cummunication temp;
-			std::memcpy((void *)finder->second.pBuf, &temp, sizeof(function_cummunication));
-			finder->second.MMF_state = 2;
-		}
-
-		finder->second.fc = (function_cummunication*)finder->second.pBuf;
-
-		if (f_name == own_name)
-		{
-			_ftime64_s(&finder->second.fc->last_call);
-
-			finder->second.fc->fire = 1;
-			if (finder->second.fc->trigger == 0) finder->second.fc->trigger = 2;
-
-			int bytes = GetModuleFileName(NULL, finder->second.fc->exe_path, 512);
-			if (bytes >= 512)
-				printf("Too long address\n -> %s\n", finder->second.fc->exe_path);
-		}
-
-		return 1;
+		return true;
 	};
-	template <typename T> T* connect(std::string f_name)
+
+	unsigned int get_ms_duration(_timeb &to, _timeb &from)
 	{
-		int customed_data_size = (int)sizeof(T);
-		if (connect(f_name, customed_data_size) == 0) return nullptr;
+		unsigned int dt = 1000 * (unsigned int)(to.time - from.time);
+		unsigned int dmt = (unsigned int)(to.millitm - from.millitm);
 
-		std::map<std::string, function>::iterator finder = f_list.find(f_name);
+		return dt + dmt;
+	};
 
-		if (own_name == f_name)
+	bool check_owner(std::map<std::string, IPC_connection_info*>::iterator finder)
+	{
+		_timeb now;
+		_ftime64_s(&now);
+
+		unsigned int dt = get_ms_duration(now, finder->second->state->last_owner_call);
+
+		if (dt < sleep_ms_time + 50) return true;
+
+		return false;
+	}
+
+public:
+
+	IPC::IPC() :
+		sleep_ms_time(500), owner_thread(nullptr), own_IPC(nullptr)
+	{
+
+	};
+
+	IPC::IPC(std::string Owner_name) :
+		sleep_ms_time(500), owner_thread(nullptr), own_IPC(nullptr),
+		owner_name(Owner_name)
+	{
+
+	};
+
+	bool connect(std::string IPC_name, unsigned int _data_size = 0)
+	{
+		std::map<std::string, IPC_connection_info*>::iterator finder = IPC_list.find(IPC_name);
+		if (finder != IPC_list.end()) if (finder->second->isConnected())
+			return true;
+
+		IPC_list_mutex.lock();
+		IPC_list.insert(std::pair<std::string, IPC_connection_info*>
+			(IPC_name, new IPC_connection_info()));
+		IPC_list_mutex.unlock();
+
+		finder = IPC_list.find(IPC_name);
+
+		finder->second->data_size = _data_size;
+
+		if (!openMMF(finder))
+			if (!createMMF(finder))
+				return false;
+
+		if (IPC_name == owner_name) set_owner(IPC_name);
+
+
+		return true;
+	};
+
+	template <typename T> T* connect(std::string IPC_name)
+	{
+		if (!connect(IPC_name, (unsigned int)sizeof(T)))
+			return nullptr;
+
+		std::map<std::string, IPC_connection_info*>::iterator finder = IPC_list.find(IPC_name);
+		if (finder == IPC_list.end()) return nullptr;
+
+		if (!finder->second->is_initialized)
 		{
-			T* temp = new T;
-			std::memcpy((void*)&finder->second.pBuf[sizeof(function_cummunication)], temp, sizeof(T));
-			delete temp;
+			T* initilizer = new T;
+			std::memcpy((void*)&finder->second->pBuf[sizeof(IPC_state)], initilizer, sizeof(T));
+			finder->second->is_initialized = true;
+
+			delete initilizer;
 		}
 
-		return (T*)&finder->second.pBuf[sizeof(function_cummunication)];
-	};
-	template <typename T> T* get_data(std::string f_name)
-	{
-		std::map<std::string, function>::iterator finder = f_list.find(_exe_name);
-		if (finder == f_list.end()) return nullptr;
+		return (T*)&finder->second->pBuf[sizeof(IPC_state)];
+	}
 
-		std::map<std::string, function>::iterator finder = f_list.find(f_name);
-		return (T*)&finder->second.pBuf[sizeof(function_cummunication)];
-	};
-	function_cummunication* get_state(std::string _exe_name)
+	bool set_owner(std::string IPC_name)
 	{
-		std::map<std::string, function>::iterator finder = f_list.find(_exe_name);
-		if (finder == f_list.end()) return nullptr;
+		if (!owner_name.empty()) if (owner_name != IPC_name) return false;
 
-		return finder->second.fc;
-	};
+		std::map<std::string, IPC_connection_info*>::iterator finder = IPC_list.find(IPC_name);
+		if (finder == IPC_list.end()) return false;
+
+		if (owner_thread)
+			if (owner_thread->joinable())
+				return true;
+
+		_timeb now;
+		_ftime64_s(&now);
+
+		unsigned int dt = get_ms_duration(now, finder->second->state->last_owner_call);
+		if (dt < sleep_ms_time) return false;
+
+		own_IPC = finder->second;
+		owner_name = IPC_name;
+		int bytes = GetModuleFileName(NULL, own_IPC->state->exe_path, 512);
+		if (bytes >= 512)
+			printf("Too long address\n -> %s\n", own_IPC->state->exe_path);
+
+		owner_thread = new std::thread(&IPC::owner_action, this);
+
+		return true;
+	}
+
+	std::string get_exe_path(std::string IPC_name)
+	{
+		std::map<std::string, IPC_connection_info*>::iterator finder = IPC_list.find(IPC_name);
+		if (finder == IPC_list.end()) return std::string();
+
+		if (!check_owner(finder)) return std::string();
+
+		return std::string(finder->second->state->exe_path);
+	}
+
+	bool check_owner(std::string IPC_name)
+	{
+		std::map<std::string, IPC_connection_info*>::iterator finder = IPC_list.find(IPC_name);
+		if (finder == IPC_list.end()) return false;
+
+		return check_owner(finder);
+	}
+
+	bool check_connection(void)
+	{
+		if (!own_IPC) return false;
+
+		_timeb now;
+		_ftime64_s(&now);
+
+		unsigned int dt = get_ms_duration(now, own_IPC->state->last_connect_call);
+
+		if (dt < sleep_ms_time) return true;
+
+		return false;
+	}
+
+	bool check_connection(std::string IPC_name)
+	{
+		std::map<std::string, IPC_connection_info*>::iterator finder = IPC_list.find(IPC_name);
+		if (finder == IPC_list.end()) return false;
+
+		_timeb now;
+		_ftime64_s(&now);
+
+		unsigned int dt = get_ms_duration(now, finder->second->state->last_connect_call);
+
+		if (dt < sleep_ms_time) return true;
+
+		return false;
+	}
+
+	bool set_target_hz(std::string IPC_name, float Target_hz)
+	{
+		std::map<std::string, IPC_connection_info*>::iterator finder = IPC_list.find(IPC_name);
+		if (finder == IPC_list.end()) return false;
+
+		finder->second->state->target_hz = Target_hz;
+
+		return true;
+	}
+
+	float get_actual_hz(void)
+	{
+		if (own_IPC) return own_IPC->state->actual_hz;
+		else return 0.0f;
+	}
+
+	float get_actual_hz(std::string IPC_name)
+	{
+		std::map<std::string, IPC_connection_info*>::iterator finder = IPC_list.find(IPC_name);
+		if (finder == IPC_list.end()) return 0.0f;
+
+		return 	finder->second->state->actual_hz;
+	}
+
+	int get_ms(void)
+	{
+		if (own_IPC) return own_IPC->state->ms;
+		else return 0;
+	}
+
+	int get_ms(std::string IPC_name)
+	{
+		std::map<std::string, IPC_connection_info*>::iterator finder = IPC_list.find(IPC_name);
+		if (finder == IPC_list.end()) return 0;
+
+		return 	finder->second->state->ms;
+	}
+
+	//it's performed by wait_IPC
+	int get_iteration_time(void)
+	{
+		if (own_IPC) return own_IPC->state->ms;
+
+		return 0;
+	}
+
+	//it's performed by wait_IPC
+	int get_iteration_time(std::string IPC_name)
+	{
+		std::map<std::string, IPC_connection_info*>::iterator finder = IPC_list.find(IPC_name);
+		if (finder == IPC_list.end()) return 0;
+
+		return finder->second->state->ms;
+	}
+
+	void wait_IPC(void)
+	{
+		if (!own_IPC)
+		{
+			Sleep(30);
+			return;
+		}
+
+		_timeb now;
+		_ftime64_s(&now);
+
+		int dt = (int)get_ms_duration(now, own_IPC->state->iteration_call);
+
+		own_IPC->state->ms = dt;
+
+		float designed_t_gap = 1000.0f / own_IPC->state->target_hz;
+		float t_gap_to_target_hz = designed_t_gap - (float)dt;
+
+		if (t_gap_to_target_hz > 0.0f && dt > 0) Sleep((int)t_gap_to_target_hz);
+		else
+		{
+			float temp_designed_t_gap = 1000.0f / 30.0f;
+			float temp_t_gap_to_target_hz = temp_designed_t_gap - (float)dt;
+
+			if (temp_t_gap_to_target_hz > 0.0f && dt > 0)
+				Sleep((int)temp_t_gap_to_target_hz);
+		}
+
+		_ftime64_s(&now);
+
+		float actual_dt = (float)get_ms_duration(now, own_IPC->state->iteration_call);
+
+		own_IPC->state->actual_hz = 1000.0f / actual_dt;
+
+		own_IPC->state->iteration_call = now;
+	}
+
+	bool wait_val(int &target, int Val, int milli_sec = 1000)
+	{
+		int sllep_time = 10;
+		int counter = milli_sec / sllep_time;
+
+		while (counter-- > 0)
+		{
+			if (target == Val) return 1;
+			Sleep(sllep_time);
+		}
+
+		return 0;
+	}
+
 	int execute(std::string exePath, std::string exeName, int console = 1)
 	{
 		SHELLEXECUTEINFOA p_info;
@@ -245,119 +434,156 @@ public:
 
 		return ShellExecuteEx(&p_info);
 	};
-	int isOn(std::string _exe_name)
+
+	int exit_IPC(std::string IPC_name)
 	{
-		function_cummunication *state = get_state(_exe_name);
-		if (state == nullptr) return 0;
-		else if (state->fire > 0) return 1;
-		else return 0;
+		if (!check_owner(IPC_name)) return 0;
+
+		std::map<std::string, IPC_connection_info*>::iterator finder = IPC_list.find(IPC_name);
+		if (finder == IPC_list.end()) return 0;
+
+		finder->second->state->exit_commend = true;
+
+		return 1;
+	};
+
+	void registe_exit_callback(CallBack_Function callback_function, void* userdata = 0)
+	{
+		callback_functions.push_back(std::pair<CallBack_Function, void*>(callback_function, userdata));
+	};
+};
+
+class Virtual_DB_mannager
+{
+private:
+	std::ofstream saver;
+	std::ifstream loader;
+
+public:
+	std::string DB_path = "..\\..\\simul_DB\\";
+
+	void save(char* data, unsigned long long size, std::string File_name)
+	{
+		_mkdir(DB_path.c_str());
+
+		saver.open(DB_path + File_name + ".sim", std::ios_base::out | std::ios_base::trunc | std::ios_base::binary);
+
+		if (!saver.is_open()) return;
+
+		saver.write(data, size);
+
+		saver.close();
 	}
-	int isConnected(std::string f_name)
+	void load(char* data, unsigned long long size, std::string File_name)
 	{
-		std::map<std::string, function>::iterator finder = f_list.find(f_name);
-		if (finder == f_list.end()) return 0;
+		loader.open(DB_path + File_name + ".sim", std::ios_base::in | std::ios_base::binary);
 
-		if (finder->second.MMF_state == 1) return 1;
-		else return 0;
+		if (!loader.is_open()) return;
+
+		loader.read(data, size);
+
+		loader.close();
+	}
+	void saveImg(cv::Mat& img, std::string File_name)
+	{
+		_mkdir(DB_path.c_str());
+
+		cv::imwrite(DB_path + File_name + ".jpg", img);
+	}
+	void loadImg(cv::Mat& img, std::string File_name)
+	{
+		img = cv::imread(DB_path + File_name + ".jpg");
+	}
+};
+
+struct Vurtiual_DB
+{
+	//0:none, 1:record, 2:play
+	int simulation_mode = 0;
+	int simulation_DB_idx = 0;
+
+	bool simulation_DB_visualize = false;
+};
+
+struct MapData_Folder
+{
+	char mapData_folder[512] = "..\\..\\MapData\\";
+};
+
+struct Mode
+{
+private:
+	int mode_flag;
+
+public:
+	Mode::Mode()
+		: mode_flag(0)
+	{};
+	enum FLAG
+	{
+		querying,
+		inserting,
+		saveDB,
+		loadDB,
+		reset,
+		always_on,
+		draw1,
+		draw2,
+		draw3,
+		draw4,
+		option1
 	};
 
-	///특정 프로세서 실행을 engine 에 요청함
-	///폐기된 함수
-	int start(std::string _exe_name)
+	void clear_flag(void) { mode_flag = 0; }
+	bool empty_flag(void) { return mode_flag == 0; };
+	bool get_flag(FLAG idx) { return (mode_flag & 1 << idx) != 0; }
+	bool get_and_off_flag(FLAG idx)
 	{
-		//std::map<std::string, function>::iterator finder = f_list.find(_exe_name);
-		//if (finder == f_list.end()) return 0;
-		//if (finder->second.MMF_state <= 0) return 0;
-
-		//if (_exe_name == own_name)
-		//{
-		//	finder->second.fc->fire = 1;
-		//	if (finder->second.fc->trigger == 0) finder->second.fc->trigger = 2;
-		//}
-		//else
-		//{
-		//	finder->second.fc->trigger = 1;
-		//}
-
-		return 1;
-	};
-
-	///종료 요청. 해당 모듈은 exit 에서 종료 시그널을 받아 스스로 종료한다.
-	int stop(std::string _exe_name)
+		bool val = get_flag(idx);
+		if (val) mode_flag -= 1 << idx;
+		return val;
+	}
+	void set_flag_on(FLAG idx) { mode_flag |= 1 << idx; }
+	void set_flag_off(FLAG idx) { get_and_off_flag(idx); }
+	void set_flag(FLAG idx, bool val)
 	{
-		std::map<std::string, function>::iterator finder = f_list.find(_exe_name);
-		if (finder == f_list.end()) return 0;
-		if (finder->second.MMF_state <= 0) return 0;
-
-		finder->second.fc->trigger = 0;
-		return 1;
-	};
-
-	/// 무조건 main loop 안에 한번 호출되어야 함. 
-	///engine 이 프로세서 상태를 점검하고 종료할수 있게함.
-	int exit(void)
+		if (val) set_flag_on(idx);
+		else set_flag_off(idx);
+	}
+	bool check_draw_flag(void)
 	{
-		std::map<std::string, function>::iterator finder = f_list.find(own_name);
-		if (finder == f_list.end()) return 0;
-		if (finder->second.MMF_state <= 0) return 0;
+		if (get_flag(FLAG::draw1)) return true;
+		if (get_flag(FLAG::draw2)) return true;
+		if (get_flag(FLAG::draw3)) return true;
+		if (get_flag(FLAG::draw4)) return true;
 
-		if (finder->second.fc->trigger == 0)
+		return false;
+	}
+	bool wait_flag(FLAG idx, bool val = false, int ms = 1000)
+	{
+		int wait_time = 10;
+		int counter = ms / wait_time;
+		while (counter-- > 0)
 		{
-			finder->second.fc->fire = finder->second.fc->trigger;
-
-			finder->second.MMF_state = 0;
-			UnmapViewOfFile(finder->second.pBuf);
-			CloseHandle(finder->second.hMapFile);
-			return 1;
+			if (get_flag(idx) == val) return true;
+			Sleep(wait_time);
 		}
 
-		struct _timeb now_T;
-		_ftime64_s(&now_T);
-		int sec_gap = (int)(now_T.time - finder->second.fc->last_call.time);
-		int mili_gap = (int)(now_T.millitm - finder->second.fc->last_call.millitm);
-		float t_gap = (float)(1000 * sec_gap + mili_gap);
-		finder->second.fc->ms = (int)t_gap;
-
-		float designed_t_gap = 1000.0f / (float)finder->second.fc->target_hz;
-		float laft_t_gap = designed_t_gap - t_gap;
-		if (laft_t_gap>0 && t_gap >= 0) Sleep((DWORD)laft_t_gap);
-
-		struct _timeb after_sleep;
-		_ftime64_s(&after_sleep);
-		sec_gap = (int)(after_sleep.time - finder->second.fc->last_call.time);
-		mili_gap = (int)(after_sleep.millitm - finder->second.fc->last_call.millitm);
-		t_gap = (float)(1000 * sec_gap + mili_gap);
-		finder->second.fc->actual_hz = 1000.0f / t_gap;
-
-		_ftime64_s(&finder->second.fc->last_call);
-
-		return 0;
-	};
+		return false;
+	}
 };
 
-
-struct NaviEngine
-{
-	int state = 0;
-};
-
-struct Cam_640480
-{
-	bool imshow = true;
-	unsigned char data[640 * 480 * 3];
-};
-
-struct Robot
+struct Robot : Vurtiual_DB, Mode
 {
 	//////////////////////////// input ////////////////////////////
-	double set_max_vel = 700.0;
-	double set_max_rot_vel = 20.0;
+	int set_max_vel = 700;
+	int set_max_rot_vel = 20;
 
 	double set_vel = 0.0;
 	double set_rotvel = 0.0;
 
 	bool navigate_on = false;
-	bool direct_on = false;
+
 	//mm
 	//<0:not observed
 	double dist_2_destination = -1.0;
@@ -380,111 +606,8 @@ struct Robot
 
 	double KeyFrame[3][3] = {}; // [idx][val] -> [val] : {Key, t, r}
 };
-
-struct ObservationData
+struct RGBDcamera :Vurtiual_DB, Mode, MapData_Folder
 {
-	//////////////////////////// input ////////////////////////////
-	int mode = 0; // 0:localize, 1:save, 2:saveDB, 3:loadDB, 9:reset
-	bool always_on_flag = 0;
-	bool draw_flag = 0;
-	int row = 480;
-	int col = 640;
-	unsigned char RGB_data[640 * 480 * 3];
-
-	//////////////////////////// output ////////////////////////////
-	int num_detected_feature = 0;
-	int num_DB_size = 0;
-	float score[2048];
-	float likelihood[2048];
-};
-
-struct Kinect1Data
-{
-	//////////////////////////// input ////////////////////////////
-	bool get_color = 1;
-	bool get_grid = 1;
-
-	int        cgridWidth = 500;
-	int        cgridHeight = 500;
-	int		   cRobotCol = 250;
-	int		   cRobotRow = 350;
-
-	double mm2grid = 100.0 / 1000.0;
-	int sampling_gap = 20;
-
-	//////////////////////////// output ////////////////////////////
-	unsigned char gridData[500 * 500];
-	unsigned char freeData[500 * 500];
-	unsigned char occupyData[500 * 500];
-	unsigned char colorData[2][640 * 480 * 4];
-	double RT[2][16];
-};
-struct Kinect2Data
-{
-	//////////////////////////// input ////////////////////////////
-	double setYaw = 0.0;
-	double setPitch = 0.0;
-	bool draw_color = 0;
-
-	//////////////////////////// output ////////////////////////////
-	int        cColorWidth = 960; // 1920 / 2;
-	int        cColorHeight = 540; // 1080 / 2;
-	unsigned char data[960 * 540 * 3];
-
-	///<Color>///
-	bool BodyTracked[6];				//Ex) {0,0,0,0,1,0} or {1,0,0,0,1,0} or {0,0,1,0,1,1}
-	double JointData[6][25][3];			//joints, ColorSpace(x,y, jointsState)
-	double JointsWorldCoordinate[6][25][3];	//WorldCoordinate(x,y,z), 
-											///<Texture>///
-	unsigned char BodyIndexMat_data[424 * 512 * 3];		//BodyIndex Mat
-	unsigned char body_img_data[424 * 512 * 1];			//body_img Mat
-};
-
-struct HumanReIdentificationData
-{
-
-	//////////////////////////// input ////////////////////////////
-	int Mode = 0;	//	Mode 2: HumanTraining, Mode:3 Save, Mode 4: Load, Mode 5: Run, Mode 9: Reset
-	bool draw_flag = 1;
-	bool TakePicture = 1;
-	int TargetLabel = 0;
-	//////////////////////////// output ////////////////////////////
-	float score[10 + 1];
-	float Color_likelihood[10 + 1];
-	float Texture_likelihood[10 + 1];
-	int Color_result = 0;
-	int Texture_result = 0;
-	int people_count = 0;
-	int frame_count_color = 0;
-	int frame_count_texture = 0;
-};
-
-struct LocalizerData
-{
-	//////////////////////////// input ////////////////////////////
-	bool received = true;
-
-	int mode_in = 0;
-	int keyFrame_in = 0;
-
-	//-1:no commend
-	int goal_size_in = 0;
-
-	int goal_list_in[MAX_GOAL_NUMBER];
-
-	char dataFilePath[256];
-
-	//////////////////////////// output ////////////////////////////
-	int DB_size = 0;
-
-	int goal_size_out = 0;
-	int goal_list_out[MAX_GOAL_NUMBER];
-
-	bool drawMap = true;
-	unsigned char Map[750000];
-};
-
-struct RGBDcamera {
 	bool registration_enable;
 
 	unsigned char colorData[4][1280 * 960 * 3];
@@ -564,74 +687,7 @@ struct RGBDcamera {
 	}
 };
 
-struct RealSenseData
-{
-	//////////////////////////// input_grid ////////////////////////////
-	bool get_color = 1;
-	bool get_grid = 1;
-
-	int        cgridWidth = 500;
-	int        cgridHeight = 500;
-	int		   cRobotCol = 250;
-	int		   cRobotRow = 350;
-
-	double mm2grid = 100.0 / 1000.0;
-
-	//////////////////////////// output_grid ////////////////////////////
-	unsigned char gridData[500 * 500];
-	unsigned char freeData[500 * 500];
-	unsigned char occupyData[500 * 500];
-	int sensorNumber = 3;
-	unsigned char colorData[3][640 * 480 * 3];
-	///////////////////////////////////////////////// bg
-	int get_depth = 1;								////
-	unsigned short depthData[3][320 * 240 * 1];		////
-	float depthScale[3];							////
-													//	unsigned short irData[3][320 * 240 * 1];		////
-	int colorSize_width, colorSize_height;			////
-	int depthSize_width, depthSize_height;			////
-	float colorK[3][9], depthK[3][9];				////	fx fy ppx ppy
-	float colorCoeffs[3][5], depthCoeffs[3][5];		////
-	float depth_to_color_rot[3][9], depth_to_color_tran[3][3];		////
-
-	int ref_cam_idx;
-	////////////////////////////////////////////////////
-
-	//////////////////////////// input_vision ////////////////////////////
-	int mode = 0;
-	bool always_on_flag = false;
-
-	int querySize = 0;
-	int queryidx[10];
-	double queryIniPose[10][9];
-	//////////////////////////// output_vision ////////////////////////////
-	double matchingRate[10];
-	double matchingResult[10][9];
-
-	int ms;
-};
-
-struct ConaSlamData
-{
-	//////////////////////////// input ////////////////////////////
-
-	unsigned char RGB[640 * 480 * 3];
-
-	int mode = 0;
-
-	bool near_mode = false;
-	int near_idx = -1;
-
-	bool bUseViewer = false;
-
-	char strVocFile[256];
-
-	char strSettingsFile[256];
-};
-
-struct OrbbecCameraData;
-
-struct ExtrinsicCalibration
+struct ExtrinsicCalibration : Mode
 {
 	// input
 	bool bStart;
@@ -671,7 +727,7 @@ struct ExtrinsicCalibration
 	}
 };
 
-struct GroundDetectionData
+struct GroundDetectionData : Mode
 {
 	// input
 	char camera_name[50];	// realsense, orbbec
@@ -716,22 +772,4 @@ struct MultipleCalibration
 		memcpy(this->R, gd.R, sizeof(double) * 9);
 		memcpy(this->tvec, gd.tvec, sizeof(double) * 3);
 	}
-};
-
-struct GridData
-{
-	//0:wait, 1:every iterator
-	int get_grid_mode = 1;
-	bool mamual_ground_detecte = false;
-
-	double mm2grid = 100.0 / 1000.0;
-
-	int cgridWidth = 500;
-	int cgridHeight = 500;
-	int cRobotCol = 250;
-	int cRobotRow = 350;
-
-	unsigned char gridData[500 * 500];
-	unsigned char freeData[500 * 500];
-	unsigned char occupyData[500 * 500];
 };

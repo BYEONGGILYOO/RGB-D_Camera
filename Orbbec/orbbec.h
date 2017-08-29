@@ -1,4 +1,6 @@
 #pragma once
+#define _CRT_SECURE_NO_WARNINGS
+
 #include "functions.h"
 #include "OpenNI.h"
 #include "camera_matrix.h"

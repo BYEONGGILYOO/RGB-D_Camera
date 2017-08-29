@@ -648,19 +648,12 @@ bool Orbbec::IRenabled() const
 
 void Orbbec::threadRun(std::mutex* mtx)
 {
-	function_cummunication *state = m_pIpc->get_state("Orbbec.exe");
-
 	while (!m_bStopThread)
 	{
 		mtx->lock();
 		getData();
 		mtx->unlock();
-		Sleep(70);
-		if (m_pIpc->exit())
-		{
-			Sleep(30);
-			break;
-		}
+		Sleep(100);
 	}
 }
 
