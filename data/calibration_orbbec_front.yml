@@ -1,49 +1,33 @@
 %YAML:1.0
 ---
-camera_position: "front"
-rgb_height: 480
-rgb_width: 640
+cam_name: "front"
 rgb_intrinsic: !!opencv-matrix
    rows: 3
    cols: 3
    dt: f
-   data: [ 512.731130633718, 0., 315.014243238957, 0., 512.878281198977, 237.517044157702, 0., 0., 1. ]
+   data: [ 552.326, 0., 321.792, 0., 514.142, 244.631, 0., 0., 1. ]
 rgb_distortion: !!opencv-matrix
    rows: 1
    cols: 5
    dt: f
-   data: [ 0.0411488009904721, -0.269338904724864, -0.00295663544707494, 0.000327741966937275, 0.299260390411289 ]
-depth_height: 480
-depth_width: 640
+   data: [ 0., 0., 0., 0., 0. ]
 depth_intrinsic: !!opencv-matrix
    rows: 3
    cols: 3
    dt: f
-   data: [ 579.050175333374, 0., 318.435236018594, 0., 578.897996420423, 253.631229857097, 0., 0., 1. ]
+   data: [ 621.034, 0., 312.941, 0., 578.787, 239.106, 0., 0., 1. ]
 depth_distortion: !!opencv-matrix
    rows: 1
    cols: 5
    dt: f
-   data: [ -0.109977051664097, 0.430216805001106, -0.00120749187630133, -0.00243343449281339, -0.531974310348107 ]
+   data: [ 0., 0., 0., 0., 0. ]
 depth_to_color_Rot: !!opencv-matrix
    rows: 3
    cols: 3
    dt: f
-   data: [ 0.999980972127909, 0.00450156035651192, 0.00421797777118137, -0.00450429106685927, 0.999989652027475, 0.000638122209733924, -0.00421506157802134, -0.000657109067221082, 0.999990900690385 ]
+   data: [ 0.999974,  0.00570016, -0.00443939, -0.00578138, 0.999812, -0.0185024, 0.00433309, 0.0185275, 0.999819 ]
 depth_to_color_tvec: !!opencv-matrix
    rows: 3
    cols: 1
    dt: f
-   data: [ -25.1460114447861, 0.0346848067009519, 0.231960411662208 ]
-depth_multiplicative_correction_factor: 1.0
-depth_additive_correction_factor: 0.0
-cam_to_cam_Rot: !!opencv-matrix
-   rows: 3
-   cols: 3
-   dt: f
-   data: [1., 0., 0., 0., 1., 0., 0., 0., 1.]
-cam_to_cam_tvec: !!opencv-matrix
-   rows: 3
-   cols: 1
-   dt: f
-   data: [ 0., 0., 0. ]
+   data: [ -28.4732, 4.71119, 3.05703  ]

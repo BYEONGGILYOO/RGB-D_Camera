@@ -255,12 +255,12 @@ void Orbbec::getRGBorIR(int dev_idx, T* output_data, double* time)
 	else
 	{
 		// ir mode
-		const cv::Mat irImage(m_pData->colorHeight, m_pData->colorWidth, CV_16UC1, (T*)frame_rgb_ir.getData());
+		const cv::Mat irImage(this->depth_height, this->depth_width, CV_16UC1, (T*)frame_rgb_ir.getData());
 		// time stamp
 		auto now = std::chrono::system_clock::now();
 		*time = (double)std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count() / 1000000000.0;
 		
-		cv::Mat flipedIRimage(m_pData->colorHeight, m_pData->colorWidth, CV_16UC1, (T*)output_data);
+		cv::Mat flipedIRimage(this->depth_height, this->depth_width, CV_16UC1, (T*)output_data);
 		cv::flip(irImage, flipedIRimage, 1);
 	}
 }
@@ -347,7 +347,7 @@ bool Orbbec::getData()
 		}
 		else
 		{
-			ir_buff[i] = new ushort[this->depth_width * this->depth_width];
+			ir_buff[i] = new ushort[this->depth_width * this->depth_height];
 			getRGBorIR(i, ir_buff[i], &color_time_buff[i]);
 		}
 
