@@ -139,6 +139,17 @@ void commend_thread(Orbbec* orbbec, std::mutex *m_mtx)
 			orbbec->setRGBResolution(Orbbec::Resolution::SXGA);
 			m_mtx->unlock();
 		}
+		if (commend == "d0") {
+			m_mtx->lock();
+			orbbec->setDepthResolution(Orbbec::Resolution::QVGA);
+			m_mtx->unlock();
+		}
+		if (commend == "d1") {
+			m_mtx->lock();
+			orbbec->setDepthResolution(Orbbec::Resolution::VGA);
+			m_mtx->unlock();
+		}
+		
 		
 		if (commend == "t")
 		{

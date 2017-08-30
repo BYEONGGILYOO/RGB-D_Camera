@@ -287,13 +287,32 @@ void Orbbec::getDepth(int dev_idx, unsigned short* output_data, double* time)
 		cv::Mat newDepth(depth_height, depth_width, CV_16UC1, output_data);
 		if (*m_pEnableRegistration)
 		{
+			float depth_ratio = m_pRGBDparam[dev_idx].depth_intrinsic.height / this->depth_height;
+			if (depth_ratio != 1.f)
+			{
+				m_pRGBDparam[dev_idx].depth_intrinsic.width /= depth_ratio;
+				m_pRGBDparam[dev_idx].depth_intrinsic.height /= depth_ratio;
+
+				m_pRGBDparam[dev_idx].depth_intrinsic.fx /= depth_ratio;
+				m_pRGBDparam[dev_idx].depth_intrinsic.fy /= depth_ratio;
+				m_pRGBDparam[dev_idx].depth_intrinsic.ppx /= depth_ratio;
+				m_pRGBDparam[dev_idx].depth_intrinsic.ppy /= depth_ratio;
+
+				m_pRGBDparam[dev_idx].color_intrinsic.width /= depth_ratio;
+				m_pRGBDparam[dev_idx].color_intrinsic.height /= depth_ratio;
+
+				m_pRGBDparam[dev_idx].color_intrinsic.fx /= depth_ratio;
+				m_pRGBDparam[dev_idx].color_intrinsic.fy /= depth_ratio;
+				m_pRGBDparam[dev_idx].color_intrinsic.ppx /= depth_ratio;
+				m_pRGBDparam[dev_idx].color_intrinsic.ppy /= depth_ratio;
+			}
 			for (int y = 0; y < depthImage.rows; y++)
 			{
 				for (int x = 0; x < depthImage.cols; x++)
 				{
 					uint16_t depth_val = (uint16_t)depthImage.at<ushort>(y, x);
 					float depth_val_float = (float)depth_val;
-
+					
 					// method 1 : 13 ~ 14 milisec
 					float2 depth_pixel = { (float)x, (float)y };
 					float3 depth_point = m_pRGBDparam[dev_idx].depth_intrinsic.deproject(depth_pixel, depth_val_float, true);
@@ -568,6 +587,13 @@ void Orbbec::setDepthResolution(const Resolution res)
 		break;
 	default:
 		break;
+	}
+
+	for (int i = 0; i < num_of_cameras; i++) {
+		m_pData[i].depthWidth = depth_width;
+		m_pData[i].depthHeight = depth_height;
+		//this->stopRGBorIRstream(i);
+		openDepth(i);
 	}
 }
 
