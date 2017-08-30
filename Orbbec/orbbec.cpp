@@ -753,3 +753,34 @@ bool Orbbec::overlapEnabled() const
 {
 	return this->m_bOverlap;
 }
+
+MouseInterface::MouseInterface(int maxMouse_num)
+{
+	number_of_mouse = maxMouse_num;
+	Mouse = new mouse_info[maxMouse_num];
+}
+MouseInterface::~MouseInterface()
+{
+	delete[] Mouse;
+}
+void onMouse(int event, int x, int y, int, void* param)
+{
+	MouseInterface::mouse_info *input_mouse = (MouseInterface::mouse_info *)param;
+
+	input_mouse->x = x;
+	input_mouse->y = y;
+	input_mouse->click = event;
+
+	if (event != 0 && (input_mouse->change_event != input_mouse->click))
+		input_mouse->change_event = event;
+};
+void MouseInterface::setWindow(char* name, int mouse_idx)
+{
+	if (mouse_idx<0 || mouse_idx>this->number_of_mouse - 1)
+	{
+		printf("There is no %d mouse\n", mouse_idx);
+		return;
+	}
+
+	cv::setMouseCallback(name, onMouse, &this->Mouse[mouse_idx]);
+}
