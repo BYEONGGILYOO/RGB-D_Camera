@@ -294,11 +294,13 @@ bool readParameterYaml(const std::string full_path, struct _rgbd_parameters_ * d
 		throw std::runtime_error("file is not opened: " + full_path);
 		return false;
 	}
-
-	fs["camera_position"] >> data->cam_id;
-	cv::Mat rk, rcoeffs, dk, dcoeffs, R, t, c2cR, c2cT, c2gR, c2gT;
+	std::string cam_pos;
+	cv::Mat rk, rcoeffs, dk, dcoeffs, d2cR, d2cT, c2cR, c2cT, c2gR, c2gT;
 	int rHeight, rWidth, dHeight, dWidth;
 	double dslope, doffset;
+
+	fs["camera_position"] >> cam_pos;
+	data->cam_id = cam_pos;
 
 	fs["rgb_height"] >> rHeight;
 	fs["rgb_width"] >> rWidth;
@@ -324,11 +326,11 @@ bool readParameterYaml(const std::string full_path, struct _rgbd_parameters_ * d
 	fs["depth_distortion"] >> dcoeffs;
 	memcpy(data->depth_intrinsic.coeffs, dcoeffs.data, sizeof(float) * 5);
 
-	fs["depth_to_color_Rot"] >> R;
-	memcpy(data->depth_to_color.rotation, R.data, sizeof(float) * 9);
+	fs["depth_to_color_Rot"] >> d2cR;
+	memcpy(data->depth_to_color.rotation, d2cR.data, sizeof(float) * 9);
 
-	fs["depth_to_color_tvec"] >> t;
-	memcpy(data->depth_to_color.translation, t.data, sizeof(float) * 3);
+	fs["depth_to_color_tvec"] >> d2cT;
+	memcpy(data->depth_to_color.translation, d2cT.data, sizeof(float) * 3);
 
 	fs["depth_multiplicative_correction_factor"] >> dslope;
 	fs["depth_additive_correction_factor"] >> doffset;
@@ -390,7 +392,7 @@ bool writeDepthCorrectionFactorsYaml(const std::string full_path, const double d
 	fs_write << "depth_width" << dwidth;
 	fs_write << "depth_height" << dheight;
 	fs_write << "depth_intrinsic" << di;
-	fs_write << "depth_distrotion" << dd;
+	fs_write << "depth_distortion" << dd;
 
 	fs_write << "depth_to_color_Rot" << d2cR;
 	fs_write << "depth_to_color_tvec" << d2cT;
@@ -492,7 +494,7 @@ bool writeExtrinsicParametersYaml(const std::string full_path, const cv::Mat& R,
 	fs_write << "depth_width" << dwidth;
 	fs_write << "depth_height" << dheight;
 	fs_write << "depth_intrinsic" << di;
-	fs_write << "depth_distrotion" << dd;
+	fs_write << "depth_distortion" << dd;
 
 	fs_write << "depth_to_color_Rot" << d2cR;
 	fs_write << "depth_to_color_tvec" << d2cT;
