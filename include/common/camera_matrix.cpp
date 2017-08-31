@@ -598,7 +598,7 @@ bool writeCam2GroundRt(const std::string full_path, const cv::Mat& R, const cv::
 	fs_write << "depth_width" << dwidth;
 	fs_write << "depth_height" << dheight;
 	fs_write << "depth_intrinsic" << di;
-	fs_write << "depth_distrotion" << dd;
+	fs_write << "depth_distortion" << dd;
 
 	fs_write << "depth_to_color_Rot" << d2cR;
 	fs_write << "depth_to_color_tvec" << d2cT;

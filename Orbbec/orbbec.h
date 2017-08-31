@@ -484,7 +484,8 @@ public:
 			row = i / width;
 
 			float2 depth_pixel = { (float)col, (float)row };
-			float3 depth_point = m_pRGBDparam[dev_idx].depth_intrinsic.deproject(depth_pixel, (float)val);
+			//float3 depth_point = m_pRGBDparam[dev_idx].depth_intrinsic.deproject(depth_pixel, (float)val);
+			float3 depth_point = m_pRGBDparam[dev_idx].color_intrinsic.deproject(depth_pixel, (float)val);
 			float3 real_point = cam2ground[dev_idx].transform(depth_point);
 
 			int x = m_pGridData->cRobotCol + (int)(m_pGridData->mm2grid * real_point.x);
