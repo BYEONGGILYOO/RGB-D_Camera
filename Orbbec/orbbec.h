@@ -412,6 +412,8 @@ public:
 	{
 		m_pIpc = new IPC("GridData");
 		m_pGridData = m_pIpc->connect<GridData>("GridData");
+
+		pData->set_flag_on(Mode::draw2);
 	};
 	GridMaker::~GridMaker()
 	{
@@ -430,9 +432,35 @@ public:
 		{
 			temp_FreeGrid.push_back(cv::Mat(m_pGridData->cgridHeight, m_pGridData->cgridWidth, CV_8UC1));
 			temp_ObGrid.push_back(cv::Mat(m_pGridData->cgridHeight, m_pGridData->cgridWidth, CV_8UC1));
+			
 
+			float m2mm = 1000.0f;
+			cv::Mat c2g_R, c2g_T;
+			readCam2GroundRt(data_path, c2g_R, c2g_T);
+			if (c2g_R.type() != CV_32FC1) c2g_R.convertTo(c2g_R, CV_32FC1);
+			if (c2g_T.type() != CV_32FC1) c2g_T.convertTo(c2g_T, CV_32FC1);
+			cv::Mat Cam2GroundRt = cv::Mat::eye(cv::Size(4, 4), CV_32FC1);
+			c2g_T *= m2mm;
+			c2g_R.copyTo(Cam2GroundRt(cv::Rect(0, 0, 3, 3)));
+			c2g_T.copyTo(Cam2GroundRt(cv::Rect(3, 0, 1, 3)));
+
+			cv::Mat c2c_R, c2c_T;
+			cv::Mat Cam2Cam = cv::Mat::eye(cv::Size(4, 4), CV_32FC1);
+			readExtrinsicParametersYaml(data_path, c2c_R, c2c_T);
+			if (c2c_R.type() != CV_32FC1) c2c_R.convertTo(c2c_R, CV_32FC1);
+			if (c2c_T.type() != CV_32FC1) c2c_T.convertTo(c2c_T, CV_32FC1);
+			c2c_T *= m2mm;
+			c2c_R.copyTo(Cam2Cam(cv::Rect(0, 0, 3, 3)));
+			c2c_T.copyTo(Cam2Cam(cv::Rect(3, 0, 1, 3)));
+
+			std::cout << Cam2Cam << std::endl;
+			std::cout << Cam2GroundRt << std::endl;
+
+			cv::Mat extrin = Cam2GroundRt * Cam2Cam;
 			cv::Mat R, T;
-			readCam2GroundRt(data_path, R, T);
+			R = extrin(cv::Rect(0, 0, 3, 3)).clone();
+			T = extrin(cv::Rect(3, 0, 1, 3)).clone();
+
 			cam2ground.push_back(RGBD_Extrinsics());
 			std::memcpy(cam2ground.back().rotation, R.data, sizeof(float) * 9);
 			std::memcpy(cam2ground.back().translation, T.data, sizeof(float) * 3);
@@ -456,7 +484,7 @@ public:
 			row = i / width;
 
 			float2 depth_pixel = { (float)col, (float)row };
-			float3 depth_point = m_pRGBDparam->depth_intrinsic.deproject(depth_pixel, (float)val);
+			float3 depth_point = m_pRGBDparam[dev_idx].depth_intrinsic.deproject(depth_pixel, (float)val);
 			float3 real_point = cam2ground[dev_idx].transform(depth_point);
 
 			int x = m_pGridData->cRobotCol + (int)(m_pGridData->mm2grid * real_point.x);
@@ -510,8 +538,11 @@ public:
 		else
 		{
 			cv::destroyWindow("3D Viewer");
-			delete view;
-			view = nullptr;
+			if (view)
+			{
+				delete view;
+				view = nullptr;
+			}
 		}
 	};
 	void updateGrid(void)

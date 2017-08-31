@@ -318,17 +318,17 @@ void Orbbec::getDepth(int dev_idx, unsigned short* output_data, double* time)
 					float depth_val_float = (float)depth_val;
 					
 					// method 1 : 13 ~ 14 milisec
-					float2 depth_pixel = { (float)x, (float)y };
+					/*float2 depth_pixel = { (float)x, (float)y };
 					float3 depth_point = m_pRGBDparam[dev_idx].depth_intrinsic.deproject(depth_pixel, depth_val_float, true);
 					float3 color_point = m_pRGBDparam[dev_idx].depth_to_color.transform(depth_point);
 					float2 color_pixel = m_pRGBDparam[dev_idx].color_intrinsic.project(color_point, true);
 
-					const int cx = (int)std::round(color_pixel.x), cy = (int)std::round(color_pixel.y);
+					const int cx = (int)std::round(color_pixel.x), cy = (int)std::round(color_pixel.y);*/
 
 					// mehtod 2 : 9 ~ 10 milisec
-					/*const int cx = (int)std::round(m_pRegistrationMatrix[dev_idx][0] * (double)x + m_pRegistrationMatrix[dev_idx][1] * (double)y + m_pRegistrationMatrix[dev_idx][2] + m_pRegistrationMatrix[dev_idx][3] / (double)depth_val_float);
+					const int cx = (int)std::round(m_pRegistrationMatrix[dev_idx][0] * (double)x + m_pRegistrationMatrix[dev_idx][1] * (double)y + m_pRegistrationMatrix[dev_idx][2] + m_pRegistrationMatrix[dev_idx][3] / (double)depth_val_float);
 					const int cy = (int)std::round(m_pRegistrationMatrix[dev_idx][4] * (double)x + m_pRegistrationMatrix[dev_idx][5] * (double)y + m_pRegistrationMatrix[dev_idx][6] + m_pRegistrationMatrix[dev_idx][7] / (double)depth_val_float);
-					*/
+					
 					if (cx < 0 || cy < 0 || cx >= m_pRGBDparam[dev_idx].color_intrinsic.width || cy >= m_pRGBDparam[dev_idx].color_intrinsic.height) 
 						continue;
 					
