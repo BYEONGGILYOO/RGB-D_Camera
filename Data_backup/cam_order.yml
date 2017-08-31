@@ -1,0 +1,8 @@
+%YAML:1.0
+---
+camera_name : "orbbec"
+num_of_cameras : 3
+ref_camera_idx : 1
+right: 2
+left: 0
+front: 1

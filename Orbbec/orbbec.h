@@ -396,14 +396,19 @@ private:
 
 	Option option;
 	IPC* m_pIpc;
+	RGBDcamera *m_pData;
 	GridData* m_pGridData;
 
+	PointCloudView* view;
+
+	std::vector<RGBD_Extrinsics> cam2ground;
 	std::vector<cv::Mat> temp_FreeGrid, temp_ObGrid;
-	std::vector<cv::Mat> DepthIdx2Coordinate;
+	//std::vector<cv::Mat> DepthIdx2Coordinate;
 	cv::Mat Grid, FreeGrid, ObGrid;
 public:
 
-	GridMaker::GridMaker()
+	GridMaker::GridMaker(RGBDcamera *pData)
+		: m_pData(pData)
 	{
 		m_pIpc = new IPC("GridData");
 		m_pGridData = m_pIpc->connect<GridData>("GridData");
@@ -412,7 +417,7 @@ public:
 	{
 		if (m_pIpc) delete m_pIpc;
 	}
-	void getGrid(unsigned short* input_data, int dev_idx, int width, int height, RGBD_Parameters *m_pRGBDparam)
+	void getGrid(unsigned short* input_data, int dev_idx, std::string data_path, int width, int height, RGBD_Parameters *m_pRGBDparam)
 	{
 		if (Grid.empty())
 		{
@@ -425,6 +430,12 @@ public:
 		{
 			temp_FreeGrid.push_back(cv::Mat(m_pGridData->cgridHeight, m_pGridData->cgridWidth, CV_8UC1));
 			temp_ObGrid.push_back(cv::Mat(m_pGridData->cgridHeight, m_pGridData->cgridWidth, CV_8UC1));
+
+			cv::Mat R, T;
+			readCam2GroundRt(data_path, R, T);
+			cam2ground.push_back(RGBD_Extrinsics());
+			std::memcpy(cam2ground.back().rotation, R.data, sizeof(float) * 9);
+			std::memcpy(cam2ground.back().translation, T.data, sizeof(float) * 3);
 		}
 
 		temp_FreeGrid[dev_idx].setTo(0);
@@ -446,9 +457,80 @@ public:
 
 			float2 depth_pixel = { (float)col, (float)row };
 			float3 depth_point = m_pRGBDparam->depth_intrinsic.deproject(depth_pixel, (float)val);
-			//float3 real_point= m_pRGBDparam->
+			float3 real_point = cam2ground[dev_idx].transform(depth_point);
+
+			int x = m_pGridData->cRobotCol + (int)(m_pGridData->mm2grid * real_point.x);
+			int z = m_pGridData->cRobotRow - (int)(m_pGridData->mm2grid * real_point.z);
+
+			real_height = -real_point.y;
+
+			if (real_height < 100.0f)
+			{
+				if (m_pData->get_flag(Mode::draw2)) 
+					ground.push_back(cv::Point3f(real_point.x, real_point.y, real_point.z));
+
+				cv::circle(temp_FreeGrid[dev_idx], cv::Point(x, z), 5, cv::Scalar(255), -1);
+			}
+			else if (real_height < 2000.0f)
+			{
+				if (m_pData->get_flag(Mode::draw2)) 
+					obstacle.push_back(cv::Point3f(real_point.x, real_point.y, real_point.z));
+
+				cv::circle(temp_ObGrid[dev_idx], cv::Point(x, z), 5, cv::Scalar(255), -1);
+			}
+		}
+
+		if (m_pData->get_flag(Mode::draw2))
+		{
+			if (!view) view = new PointCloudView;
+
+			if (dev_idx == 0)
+			{
+				view->clear("ground");
+				view->clear("obstacle");
+			}
+
+			view->insert(ground, cv::Scalar(0, 255, 0), 1, "ground");
+			view->insert(obstacle, cv::Scalar(0, 0, 255), 1, "obstacle");
+
+			cv::Scalar frameColor(0, 0, 0);
+			frameColor.val[dev_idx] = 255;
+
+			cv::Mat RT = cv::Mat::eye(cv::Size(4, 4), CV_32FC1);
+			cv::Mat R(3, 3, CV_32FC1, cam2ground[dev_idx].rotation);
+			cv::Mat T(3, 1, CV_32FC1, cam2ground[dev_idx].translation);
+			R.copyTo(RT(cv::Rect(0, 0, 3, 3)));
+			T.copyTo(RT(cv::Rect(3, 0, 1, 3)));
+
+			view->insert(RT, frameColor, 1, cv::format("frame_%d", dev_idx));
+
+			if (dev_idx == (int)temp_FreeGrid.size() - 1)
+				view->draw(cv::Size(500, 500), "3D Viewer");
+		}
+		else
+		{
+			cv::destroyWindow("3D Viewer");
+			delete view;
+			view = nullptr;
 		}
 	};
+	void updateGrid(void)
+	{
+		FreeGrid.setTo(0);
+		ObGrid.setTo(0);
+
+		for (int i = 0; i < (int)temp_FreeGrid.size(); i++)
+		{
+			if (temp_FreeGrid[i].empty()) continue;
+
+			FreeGrid = cv::max(temp_FreeGrid[i], FreeGrid);
+			ObGrid = cv::max(temp_ObGrid[i], ObGrid);
+		}
+
+		Grid.setTo(125);
+		Grid += FreeGrid;
+		Grid -= ObGrid;
+	}
 };
 
 class Orbbec
@@ -474,6 +556,9 @@ public:
 	void writeCalibrationData(std::string path);
 
 private:
+
+	GridMaker* getGrid;
+
 	template<typename T>
 	void getRGBorIR(int dev_idx, T * output_data, double * time);
 	void getDepth(int dev_idx, unsigned short * output_data, double * time);

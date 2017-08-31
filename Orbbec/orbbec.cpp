@@ -13,7 +13,7 @@ Orbbec::Orbbec(RGBDcamera * data, IPC * ipc)
 	m_pEnableRegistration(&data->registration_enable), m_bDrawImage(false), m_bIRon(false), m_bStopThread(false), m_bOverlap(false),
 	m_depthResolution(Resolution::VGA), m_RGBResolution(Resolution::VGA)
 {
-	
+	getGrid = new GridMaker(data);
 }
 
 Orbbec::~Orbbec()
@@ -33,6 +33,10 @@ Orbbec::~Orbbec()
 	if (m_pRGBDparam != nullptr)
 		delete[] m_pRGBDparam;
 	m_pRGBDparam = nullptr;
+
+	if (getGrid != nullptr)
+		delete getGrid;
+	getGrid = nullptr;
 
 	for (int i = 0; i < num_of_cameras; i++)
 	{
@@ -373,7 +377,15 @@ bool Orbbec::getData()
 		depth_buff[i] = new ushort[this->depth_width * this->depth_height];
 		memset(depth_buff[i], 0, sizeof(ushort) * this->depth_width * this->depth_height);
 		getDepth(i, depth_buff[i], &depth_time_buff[i]);
+
+		std::string file_path = "..\\Data\\calibration_orbbec_" 
+			+ std::string(m_pData->camera_order[i]) + ".yml";
+		getGrid->getGrid(depth_buff[i], i, file_path,
+			this->depth_width, this->depth_height, m_pRGBDparam);
 	}
+
+	if (stream_is_updated && !getGrid)
+		getGrid->updateGrid();
 
 	// update buff to shared memory
 	if (!m_bIRon)

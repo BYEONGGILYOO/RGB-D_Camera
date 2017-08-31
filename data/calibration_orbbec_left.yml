@@ -1,22 +1,28 @@
 %YAML:1.0
 ---
-cam_name: "left"
+camera_postion: "left"
+rgb_width: 640
+rgb_height: 480
 rgb_intrinsic: !!opencv-matrix
    rows: 3
    cols: 3
    dt: f
-   data: [ 506.835, 0., 293.869, 0., 508.649, 253.018, 0., 0., 1. ]
+   data: [ 5.06834991e+02, 0., 2.93868988e+02, 0., 5.08648987e+02,
+       2.53018005e+02, 0., 0., 1. ]
 rgb_distortion: !!opencv-matrix
    rows: 1
    cols: 5
    dt: f
    data: [ 0., 0., 0., 0., 0. ]
+depth_width: 640
+depth_height: 480
 depth_intrinsic: !!opencv-matrix
    rows: 3
    cols: 3
    dt: f
-   data: [ 565.822, 0., 305.448, 0., 565.617, 259.221, 0., 0., 1. ]
-depth_distortion: !!opencv-matrix
+   data: [ 5.65822021e+02, 0., 3.05447998e+02, 0., 5.65617004e+02,
+       2.59221008e+02, 0., 0., 1. ]
+depth_distrotion: !!opencv-matrix
    rows: 1
    cols: 5
    dt: f
@@ -25,9 +31,38 @@ depth_to_color_Rot: !!opencv-matrix
    rows: 3
    cols: 3
    dt: f
-   data: [ 0.999975, 0.00477529, 0.00514684, -0.0048215, 0.999948, 0.0090032, -0.00510358, -0.00902779, 0.999946 ]
+   data: [ 9.99975026e-01, 4.77528991e-03, 5.14684012e-03,
+       -4.82149981e-03, 9.99948025e-01, 9.00319964e-03, -5.10358019e-03,
+       -9.02779028e-03, 9.99945998e-01 ]
 depth_to_color_tvec: !!opencv-matrix
    rows: 3
    cols: 1
    dt: f
-   data: [ -22.8327, -0.358389, -2.92743 ]
+   data: [ -2.28327007e+01, -3.58388990e-01, -2.92742991e+00 ]
+depth_multiplicative_correction_factor: 0.
+depth_additive_correction_factor: 0.
+cam_to_cam_Rot: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 8.2951438426971436e-01, 4.6826145052909851e-01,
+       -3.0436393618583679e-01, -3.8543435931205750e-01,
+       8.7438565492630005e-01, 2.9477137327194214e-01,
+       4.0416148304939270e-01, -1.2720471620559692e-01,
+       9.0579944849014282e-01 ]
+cam_to_cam_tvec: !!opencv-matrix
+   rows: 3
+   cols: 1
+   dt: d
+   data: [ -1.5520474314689636e-01, 6.9741830229759216e-02,
+       -5.5311828851699829e-02 ]
+cam_to_ground_Rot: !!opencv-matrix
+   rows: 0
+   cols: 0
+   dt: u
+   data: []
+cam_to_ground_tvec: !!opencv-matrix
+   rows: 0
+   cols: 0
+   dt: u
+   data: []
