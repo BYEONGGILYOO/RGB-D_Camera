@@ -35,5 +35,8 @@
     <ClInclude Include="..\include\common\functions.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="groundLine.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

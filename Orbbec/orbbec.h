@@ -391,11 +391,11 @@ private:
 	};
 	struct Option
 	{
-		int sampling_gap = 20;
+		int sampling_gap = 60;
 	};
 
 	Option option;
-	IPC* m_pIpc;
+	IPC_v2* m_pIpc;
 	RGBDcamera *m_pData;
 	GridData* m_pGridData;
 
@@ -410,10 +410,10 @@ public:
 	GridMaker::GridMaker(RGBDcamera *pData)
 		: m_pData(pData)
 	{
-		m_pIpc = new IPC("GridData");
+		m_pIpc = new IPC_v2("GridData");
 		m_pGridData = m_pIpc->connect<GridData>("GridData");
 
-		pData->set_flag_on(Mode::draw2);
+		//pData->set_flag_on(Mode::draw2);
 	};
 	GridMaker::~GridMaker()
 	{
@@ -423,9 +423,9 @@ public:
 	{
 		if (Grid.empty())
 		{
-			Grid = cv::Mat(m_pGridData->cgridHeight, m_pGridData->cgridWidth, CV_8UC1);
-			FreeGrid = cv::Mat(m_pGridData->cgridHeight, m_pGridData->cgridWidth, CV_8UC1);
-			ObGrid = cv::Mat(m_pGridData->cgridHeight, m_pGridData->cgridWidth, CV_8UC1);
+			Grid = cv::Mat(m_pGridData->cgridHeight, m_pGridData->cgridWidth, CV_8UC1, m_pGridData->gridData);
+			FreeGrid = cv::Mat(m_pGridData->cgridHeight, m_pGridData->cgridWidth, CV_8UC1, m_pGridData->freeData);
+			ObGrid = cv::Mat(m_pGridData->cgridHeight, m_pGridData->cgridWidth, CV_8UC1, m_pGridData->occupyData);
 		}
 
 		while (dev_idx > (int)temp_FreeGrid.size() - 1)
@@ -452,9 +452,6 @@ public:
 			c2c_T *= m2mm;
 			c2c_R.copyTo(Cam2Cam(cv::Rect(0, 0, 3, 3)));
 			c2c_T.copyTo(Cam2Cam(cv::Rect(3, 0, 1, 3)));
-
-			std::cout << Cam2Cam << std::endl;
-			std::cout << Cam2GroundRt << std::endl;
 
 			cv::Mat extrin = Cam2GroundRt * Cam2Cam;
 			cv::Mat R, T;
@@ -575,7 +572,7 @@ public:
 		// QVGA:	320 x 240
 		SXGA, VGA, QVGA
 	};
-	Orbbec(RGBDcamera *data, IPC *ipc);
+	Orbbec(RGBDcamera *data, IPC_v2 *ipc);
 	~Orbbec();
 
 	bool initialize(std::string cam_order_path);
@@ -594,7 +591,9 @@ private:
 	template<typename T>
 	void getRGBorIR(int dev_idx, T * output_data, double * time);
 	void getDepth(int dev_idx, unsigned short * output_data, double * time);
+	void setRatio();
 	bool getData();
+	bool getData2();
 
 public:
 	bool startRGBorIRstream(const int dev_idx) const;
@@ -628,11 +627,13 @@ public:
 private:
 	// IPC object
 	RGBDcamera *m_pData;
-	IPC *m_pIpc;
+	IPC_v2 *m_pIpc;
 	
 	// input data
 	int rgb_width, rgb_height;
 	int depth_width, depth_height;
+	double rgb_ratio;
+	double depth_ratio;
 
 	// openni object
 	openni::Device *m_pDevice;

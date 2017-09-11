@@ -14,7 +14,7 @@
 
 #pragma comment(lib, "Shell32.lib")
 
-class IPC
+class IPC_v2
 {
 public:
 	std::string owner_name;
@@ -39,7 +39,7 @@ private:
 		_timeb last_owner_call;
 
 		//for checking connection
-		_timeb last_connect_call;
+		_timeb last_guest_call;
 
 		//for controling hz
 		_timeb iteration_call;
@@ -68,7 +68,7 @@ private:
 
 	std::mutex IPC_list_mutex;
 	unsigned int sleep_ms_time;
-	std::thread* owner_thread;
+	std::thread* ipc_thread;
 	IPC_connection_info* own_IPC;
 
 	std::map<std::string, IPC_connection_info*> IPC_list;
@@ -76,16 +76,22 @@ private:
 	typedef void(*CallBack_Function)(void* Userdata);
 	std::vector<std::pair<CallBack_Function, void*>> callback_functions;
 
-	void owner_action(void)
+	void ipc_action(void)
 	{
-		while (!own_IPC->state->exit_commend)
+		//while (!own_IPC->state->exit_commend)
+		while (1)
 		{
-			_ftime64_s(&own_IPC->state->last_owner_call);
+			if (own_IPC)
+			{
+				if (own_IPC->state->exit_commend) break;
+				_ftime64_s(&own_IPC->state->last_owner_call);
+			}
 
 			IPC_list_mutex.lock();
 			std::map<std::string, IPC_connection_info*>::iterator i = IPC_list.begin();
-			for (; i != IPC_list.end(); i++) if (i->first != owner_name)
-				_ftime64_s(&i->second->state->last_connect_call);
+			for (; i != IPC_list.end(); i++) 
+				if (i->first != owner_name)
+					_ftime64_s(&i->second->state->last_guest_call);
 			IPC_list_mutex.unlock();
 
 			Sleep(sleep_ms_time);
@@ -181,17 +187,17 @@ private:
 
 public:
 
-	IPC::IPC() :
-		sleep_ms_time(500), owner_thread(nullptr), own_IPC(nullptr)
+	IPC_v2::IPC_v2() :
+		sleep_ms_time(500), ipc_thread(nullptr), own_IPC(nullptr)
 	{
-
+		ipc_thread = new std::thread(&IPC_v2::ipc_action, this);
 	};
 
-	IPC::IPC(std::string Owner_name) :
-		sleep_ms_time(500), owner_thread(nullptr), own_IPC(nullptr),
+	IPC_v2::IPC_v2(std::string Owner_name) :
+		sleep_ms_time(500), ipc_thread(nullptr), own_IPC(nullptr),
 		owner_name(Owner_name)
 	{
-
+		ipc_thread = new std::thread(&IPC_v2::ipc_action, this);
 	};
 
 	bool connect(std::string IPC_name, unsigned int _data_size = 0)
@@ -246,10 +252,6 @@ public:
 		std::map<std::string, IPC_connection_info*>::iterator finder = IPC_list.find(IPC_name);
 		if (finder == IPC_list.end()) return false;
 
-		if (owner_thread)
-			if (owner_thread->joinable())
-				return true;
-
 		_timeb now;
 		_ftime64_s(&now);
 
@@ -261,8 +263,6 @@ public:
 		int bytes = GetModuleFileName(NULL, own_IPC->state->exe_path, 512);
 		if (bytes >= 512)
 			printf("Too long address\n -> %s\n", own_IPC->state->exe_path);
-
-		owner_thread = new std::thread(&IPC::owner_action, this);
 
 		return true;
 	}
@@ -285,21 +285,21 @@ public:
 		return check_owner(finder);
 	}
 
-	bool check_connection(void)
+	bool check_guest(void)
 	{
 		if (!own_IPC) return false;
 
 		_timeb now;
 		_ftime64_s(&now);
 
-		unsigned int dt = get_ms_duration(now, own_IPC->state->last_connect_call);
+		unsigned int dt = get_ms_duration(now, own_IPC->state->last_guest_call);
 
 		if (dt < sleep_ms_time) return true;
 
 		return false;
 	}
 
-	bool check_connection(std::string IPC_name)
+	bool check_guest(std::string IPC_name)
 	{
 		std::map<std::string, IPC_connection_info*>::iterator finder = IPC_list.find(IPC_name);
 		if (finder == IPC_list.end()) return false;
@@ -307,7 +307,7 @@ public:
 		_timeb now;
 		_ftime64_s(&now);
 
-		unsigned int dt = get_ms_duration(now, finder->second->state->last_connect_call);
+		unsigned int dt = get_ms_duration(now, finder->second->state->last_guest_call);
 
 		if (dt < sleep_ms_time) return true;
 
@@ -385,17 +385,13 @@ public:
 		own_IPC->state->ms = dt;
 
 		float designed_t_gap = 1000.0f / own_IPC->state->target_hz;
+		if (!isfinite(designed_t_gap)) designed_t_gap = 1000.0f / 30.0f;
+
 		float t_gap_to_target_hz = designed_t_gap - (float)dt;
+		if (t_gap_to_target_hz > 0.0f && dt >= 0)
+			Sleep((int)t_gap_to_target_hz);
 
-		if (t_gap_to_target_hz > 0.0f && dt > 0) Sleep((int)t_gap_to_target_hz);
-		else
-		{
-			float temp_designed_t_gap = 1000.0f / 30.0f;
-			float temp_t_gap_to_target_hz = temp_designed_t_gap - (float)dt;
-
-			if (temp_t_gap_to_target_hz > 0.0f && dt > 0)
-				Sleep((int)temp_t_gap_to_target_hz);
-		}
+		//printf("%03f\t%03f\t%03f\n", (float)1000.0f / own_IPC->state->target_hz, (float)dt, t_gap_to_target_hz);
 
 		_ftime64_s(&now);
 
@@ -634,7 +630,7 @@ struct RGBDcamera :Vurtiual_DB, Mode, MapData_Folder
 	char camera_order[4][50];
 	RGBDcamera()
 	{
-		registration_enable = true;
+		registration_enable = false;
 
 		memset(colorData, 0, sizeof(unsigned char) * 4 * 1280 * 960 * 3);
 		memset(depthData, 0, sizeof(unsigned short) * 4 * 640 * 480);
@@ -687,9 +683,11 @@ struct RGBDcamera :Vurtiual_DB, Mode, MapData_Folder
 	}
 };
 
-struct ExtrinsicCalibration : Mode
+struct ExtrinsicCalibration
 {
+	// mode{ draw1: feature matching, draw2: camera pose }
 	// input
+	int* m_pMode;
 	bool bStart;
 	int argc;
 	char argv[100][50];
@@ -727,9 +725,10 @@ struct ExtrinsicCalibration : Mode
 	}
 };
 
-struct GroundDetectionData : Mode
+struct GroundDetectionData
 {
 	// input
+	int *m_pMode;
 	char camera_name[50];	// realsense, orbbec
 	bool bStart;
 	int iterator;
@@ -749,8 +748,11 @@ struct GroundDetectionData : Mode
 };
 struct MultipleCalibration
 	:public ExtrinsicCalibration,
-	public GroundDetectionData
+	public GroundDetectionData,
+	public Mode
 {
+	// Mode{ draw1: Extrinsic(feature matching),  draw2: Extrinsic(camera pose),
+	//       draw3: GroundDetection(inlier img),  draw4: live 3D Visualize }
 	void setExtrinsic(const ExtrinsicCalibration& ec)
 	{
 		this->ExtrinsicCalibration::bStart = ec.bStart;
@@ -772,4 +774,42 @@ struct MultipleCalibration
 		memcpy(this->R, gd.R, sizeof(double) * 9);
 		memcpy(this->tvec, gd.tvec, sizeof(double) * 3);
 	}
+};
+
+struct GridData
+{
+	//0:wait, 1:every iterator
+	int get_grid_mode = 1;
+	bool mamual_ground_detecte = false;
+
+	double mm2grid = 100.0 / 1000.0;
+
+	int cgridWidth = 500;
+	int cgridHeight = 500;
+	int cRobotCol = 250;
+	int cRobotRow = 350;
+
+	unsigned char gridData[500 * 500];
+	unsigned char freeData[500 * 500];
+	unsigned char occupyData[500 * 500];
+};
+
+struct MotionCalc : Mode
+{
+	//////////////////////////// input_vision ////////////////////////////
+	//int num_of_senseor;
+	//int cColorWidth = 640;
+	//int cColorHeight = 480;
+	//unsigned char colorData[3][640 * 480 * 3];
+
+	//int mode = 0;
+	//bool always_on_flag = false;
+
+	int querySize = 0;
+	int queryidx[10];
+	double queryIniPose[10][9];
+
+	//////////////////////////// output_vision ////////////////////////////
+	double matchingRate[10];
+	double matchingResult[10][9];
 };

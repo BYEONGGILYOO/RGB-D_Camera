@@ -91,10 +91,11 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>$(SolutionDir)include;$(SolutionDir)include\openni;$(SolutionDir)include\Eigen;$(SolutionDir)include\common</AdditionalIncludeDirectories>
+      <OpenMPSupport>true</OpenMPSupport>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>OpenNI2.lib;opencv_calib3d320d.lib;opencv_core320d.lib;opencv_features2d320d.lib;opencv_highgui320d.lib;opencv_imgcodecs320d.lib;opencv_imgproc320d.lib;opencv_rgbd320d.lib;opencv_video320d.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>OpenNI2.lib;opencv_aruco320d.lib;opencv_calib3d320d.lib;opencv_core320d.lib;opencv_features2d320d.lib;opencv_highgui320d.lib;opencv_imgcodecs320d.lib;opencv_imgproc320d.lib;opencv_rgbd320d.lib;opencv_video320d.lib;opencv_ximgproc320d.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)lib\Debug</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -120,12 +121,13 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>$(SolutionDir)include;$(SolutionDir)include\openni;$(SolutionDir)include\Eigen;$(SolutionDir)include\common</AdditionalIncludeDirectories>
+      <OpenMPSupport>true</OpenMPSupport>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>OpenNI2.lib;opencv_calib3d320.lib;opencv_core320.lib;opencv_features2d320.lib;opencv_highgui320.lib;opencv_imgcodecs320.lib;opencv_imgproc320.lib;opencv_plot320.lib;opencv_rgbd320.lib;opencv_video320.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>OpenNI2.lib;opencv_aruco320.lib;opencv_calib3d320.lib;opencv_core320.lib;opencv_features2d320.lib;opencv_highgui320.lib;opencv_imgcodecs320.lib;opencv_imgproc320.lib;opencv_plot320.lib;opencv_rgbd320.lib;opencv_video320.lib;opencv_ximgproc320.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)lib\Release</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -137,6 +139,7 @@
   <ItemGroup>
     <ClInclude Include="..\include\common\camera_matrix.h" />
     <ClInclude Include="..\include\common\functions.h" />
+    <ClInclude Include="groundLine.h" />
     <ClInclude Include="orbbec.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

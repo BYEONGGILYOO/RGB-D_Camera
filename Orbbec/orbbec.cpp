@@ -2,11 +2,13 @@
 
 #include <iostream>
 #include <chrono>
+#include <omp.h>
+
 #include "opencv2\core.hpp"
 #include "opencv2\imgproc.hpp"
 #include "opencv2\highgui.hpp"
 
-Orbbec::Orbbec(RGBDcamera * data, IPC * ipc)
+Orbbec::Orbbec(RGBDcamera * data, IPC_v2 * ipc)
 	:m_pData(data), m_pIpc(ipc), rgb_width(640), rgb_height(480), depth_width(640), depth_height(480), num_of_cameras(0),
 	m_pDevice(nullptr), m_pStreamDepth(nullptr), m_pStreamRGBorIR(nullptr), m_pRGBDparam(nullptr),
 	ref_cam_idx(0),
@@ -291,32 +293,18 @@ void Orbbec::getDepth(int dev_idx, unsigned short* output_data, double* time)
 		cv::Mat newDepth(depth_height, depth_width, CV_16UC1, output_data);
 		if (*m_pEnableRegistration)
 		{
-			float depth_ratio = m_pRGBDparam[dev_idx].depth_intrinsic.height / this->depth_height;
-			if (depth_ratio != 1.f)
+//#pragma omp parallel collaspe(2)
 			{
-				m_pRGBDparam[dev_idx].depth_intrinsic.width /= depth_ratio;
-				m_pRGBDparam[dev_idx].depth_intrinsic.height /= depth_ratio;
-
-				m_pRGBDparam[dev_idx].depth_intrinsic.fx /= depth_ratio;
-				m_pRGBDparam[dev_idx].depth_intrinsic.fy /= depth_ratio;
-				m_pRGBDparam[dev_idx].depth_intrinsic.ppx /= depth_ratio;
-				m_pRGBDparam[dev_idx].depth_intrinsic.ppy /= depth_ratio;
-
-				m_pRGBDparam[dev_idx].color_intrinsic.width /= depth_ratio;
-				m_pRGBDparam[dev_idx].color_intrinsic.height /= depth_ratio;
-
-				m_pRGBDparam[dev_idx].color_intrinsic.fx /= depth_ratio;
-				m_pRGBDparam[dev_idx].color_intrinsic.fy /= depth_ratio;
-				m_pRGBDparam[dev_idx].color_intrinsic.ppx /= depth_ratio;
-				m_pRGBDparam[dev_idx].color_intrinsic.ppy /= depth_ratio;
-			}
-			for (int y = 0; y < depthImage.rows; y++)
-			{
-				for (int x = 0; x < depthImage.cols; x++)
+//#pragma omp for
+				for (int cur = 0; cur < depthImage.rows * depthImage.cols; cur++)
 				{
-					uint16_t depth_val = (uint16_t)depthImage.at<ushort>(y, x);
+					//printf("2 for : ID: %d\n", omp_get_thread_num());
+					uint16_t depth_val = (uint16_t)depthImage.at<ushort>(cur);
 					float depth_val_float = (float)depth_val;
-					
+
+					int x = cur % depthImage.cols;
+					int y = cur / depthImage.cols;
+
 					// method 1 : 13 ~ 14 milisec
 					/*float2 depth_pixel = { (float)x, (float)y };
 					float3 depth_point = m_pRGBDparam[dev_idx].depth_intrinsic.deproject(depth_pixel, depth_val_float, true);
@@ -328,10 +316,10 @@ void Orbbec::getDepth(int dev_idx, unsigned short* output_data, double* time)
 					// mehtod 2 : 9 ~ 10 milisec
 					const int cx = (int)std::round(m_pRegistrationMatrix[dev_idx][0] * (double)x + m_pRegistrationMatrix[dev_idx][1] * (double)y + m_pRegistrationMatrix[dev_idx][2] + m_pRegistrationMatrix[dev_idx][3] / (double)depth_val_float);
 					const int cy = (int)std::round(m_pRegistrationMatrix[dev_idx][4] * (double)x + m_pRegistrationMatrix[dev_idx][5] * (double)y + m_pRegistrationMatrix[dev_idx][6] + m_pRegistrationMatrix[dev_idx][7] / (double)depth_val_float);
-					
-					if (cx < 0 || cy < 0 || cx >= m_pRGBDparam[dev_idx].color_intrinsic.width || cy >= m_pRGBDparam[dev_idx].color_intrinsic.height) 
+
+					if (cx < 0 || cy < 0 || cx >= m_pRGBDparam[dev_idx].color_intrinsic.width || cy >= m_pRGBDparam[dev_idx].color_intrinsic.height)
 						continue;
-					
+
 					uint16_t * val = (uint16_t*)newDepth.ptr<uint16_t>(cy, cx);
 					*val = depth_val;
 				}
@@ -339,6 +327,34 @@ void Orbbec::getDepth(int dev_idx, unsigned short* output_data, double* time)
 		}
 		else		// no registration
 			memcpy(output_data, depthImage.data, sizeof(ushort)* depth_height * depth_width);
+	}
+}
+
+void Orbbec::setRatio()
+{
+	rgb_ratio = m_pRGBDparam[0].color_intrinsic.height / this->rgb_height;
+	depth_ratio = m_pRGBDparam[0].depth_intrinsic.height / this->depth_height;
+
+	for (int i = 0; i < num_of_cameras; i++)
+	{
+		if (depth_ratio != 1.f)
+		{
+			m_pRGBDparam[i].depth_intrinsic.width /= depth_ratio;
+			m_pRGBDparam[i].depth_intrinsic.height /= depth_ratio;
+
+			m_pRGBDparam[i].depth_intrinsic.fx /= depth_ratio;
+			m_pRGBDparam[i].depth_intrinsic.fy /= depth_ratio;
+			m_pRGBDparam[i].depth_intrinsic.ppx /= depth_ratio;
+			m_pRGBDparam[i].depth_intrinsic.ppy /= depth_ratio;
+
+			m_pRGBDparam[i].color_intrinsic.width /= rgb_ratio;
+			m_pRGBDparam[i].color_intrinsic.height /= rgb_ratio;
+
+			m_pRGBDparam[i].color_intrinsic.fx /= rgb_ratio;
+			m_pRGBDparam[i].color_intrinsic.fy /= rgb_ratio;
+			m_pRGBDparam[i].color_intrinsic.ppx /= rgb_ratio;
+			m_pRGBDparam[i].color_intrinsic.ppy /= rgb_ratio;
+		}
 	}
 }
 
@@ -384,7 +400,7 @@ bool Orbbec::getData()
 			this->depth_width, this->depth_height, m_pRGBDparam);
 	}
 
-	if (stream_is_updated && !getGrid)
+	if (stream_is_updated && getGrid)
 		getGrid->updateGrid();
 
 	// update buff to shared memory
@@ -398,6 +414,7 @@ bool Orbbec::getData()
 			memcpy(m_pData->irData[i], ir_buff[i], sizeof(ushort)*this->depth_width*this->depth_height * 1);
 			memcpy(&m_pData->colorTime[i], &color_time_buff[i], sizeof(double));
 		}
+
 	for (int i = 0; i < num_of_cameras; i++) {
 		memcpy(m_pData->depthData[i], depth_buff[i], sizeof(ushort)*this->depth_width*this->depth_height * 1);
 		memcpy(&m_pData->depthTime[i], &depth_time_buff[i], sizeof(double));
@@ -500,6 +517,168 @@ bool Orbbec::getData()
 		}
 	}
 	
+	return stream_is_updated;
+}
+
+bool Orbbec::getData2()
+{
+	bool stream_is_updated = false;
+
+	// buff init
+	uchar** rgb_buff = nullptr;
+	ushort** ir_buff = nullptr;
+	if (!m_bIRon)
+		rgb_buff = new uchar*[num_of_cameras];
+	else
+		ir_buff = new ushort*[num_of_cameras];
+
+	ushort** depth_buff = new ushort*[num_of_cameras];
+
+	double* color_time_buff = new double[num_of_cameras];
+	double* depth_time_buff = new double[num_of_cameras];
+
+	// get the data at buff memory
+	for (int i = 0; i < num_of_cameras; i++)
+	{
+		stream_is_updated = true;
+		if (!m_bIRon)
+		{
+			rgb_buff[i] = new uchar[this->rgb_width * this->rgb_height * 3];
+			getRGBorIR(i, rgb_buff[i], &color_time_buff[i]);
+		}
+		else
+		{
+			ir_buff[i] = new ushort[this->depth_width * this->depth_height];
+			getRGBorIR(i, ir_buff[i], &color_time_buff[i]);
+		}
+
+		depth_buff[i] = new ushort[this->depth_width * this->depth_height];
+		memset(depth_buff[i], 0, sizeof(ushort) * this->depth_width * this->depth_height);
+		getDepth(i, depth_buff[i], &depth_time_buff[i]);
+
+		std::string file_path = "..\\Data\\calibration_orbbec_"
+			+ std::string(m_pData->camera_order[i]) + ".yml";
+		getGrid->getGrid(depth_buff[i], i, file_path,
+			this->depth_width, this->depth_height, m_pRGBDparam);
+	}
+
+	if (stream_is_updated && getGrid)
+		getGrid->updateGrid();
+
+	// update buff to shared memory
+	if (!m_bIRon)
+		for (int i = 0; i < num_of_cameras; i++) {
+			memcpy(m_pData->colorData[i], rgb_buff[i], sizeof(uchar)*this->rgb_width*this->rgb_height * 3);
+			memcpy(&m_pData->colorTime[i], &color_time_buff[i], sizeof(double));
+		}
+	else
+		for (int i = 0; i < num_of_cameras; i++) {
+			memcpy(m_pData->irData[i], ir_buff[i], sizeof(ushort)*this->depth_width*this->depth_height * 1);
+			memcpy(&m_pData->colorTime[i], &color_time_buff[i], sizeof(double));
+		}
+
+	for (int i = 0; i < num_of_cameras; i++) {
+		memcpy(m_pData->depthData[i], depth_buff[i], sizeof(ushort)*this->depth_width*this->depth_height * 1);
+		memcpy(&m_pData->depthTime[i], &depth_time_buff[i], sizeof(double));
+	}
+
+	// release buff memory
+	for (int i = 0; i < num_of_cameras; i++)
+	{
+		if (rgb_buff != nullptr)
+			delete[] rgb_buff[i];
+		if (ir_buff != nullptr)
+			delete[] ir_buff[i];
+		delete[] depth_buff[i];
+	}
+	if (rgb_buff != nullptr)
+		delete[] rgb_buff;
+	if (ir_buff != nullptr)
+		delete[] ir_buff;
+	delete[] depth_buff;
+	delete[] color_time_buff;
+	delete[] depth_time_buff;
+
+
+	if (m_bOverlap) {
+		for (int i = 0; i < num_of_cameras; i++)
+		{
+			cv::Mat canvas;
+			cv::Mat depth = cv::Mat(depth_height, depth_width, CV_16UC1, m_pData->depthData[i]).clone();
+			cv::Mat color(rgb_height, rgb_width, CV_8UC3, m_pData->colorData[i]);
+
+			if (m_depthResolution != m_RGBResolution)
+				cv::resize(depth, depth, cv::Size(rgb_width, rgb_height));
+			cv::Mat caliDepthHistogram(depth_height, depth_width, CV_16UC1);
+			getDepthHistogram(depth, caliDepthHistogram);
+			cv::addWeighted(caliDepthHistogram, (double)(5 / 10.0), color, (double)(5 / 10.0), 0.5, canvas);
+			cv::imshow("overlap img " + std::string(m_pData->camera_order[i]), canvas);
+		}
+		cv::waitKey(10);
+	}
+	else
+		for (int i = 0; i < num_of_cameras; i++)
+			cv::destroyWindow("overlap img " + std::string(m_pData->camera_order[i]));
+
+
+	if (m_bDrawImage)
+	{
+		if (!m_bIRon)
+		{
+			cv::Mat canvas;
+			for (int i = 0; i < num_of_cameras; i++)
+			{
+				cv::Mat tmpRGB(this->rgb_height, this->rgb_width, CV_8UC3, m_pData->colorData[i]);
+				if (i == 0)
+					canvas = tmpRGB.clone();
+				else
+					cv::hconcat(canvas, tmpRGB, canvas);
+			}
+			cv::imshow("rgb", canvas);
+			cv::destroyWindow("ir");
+		}
+		else
+		{
+			cv::Mat canvas;
+			for (int i = 0; i < num_of_cameras; i++)
+			{
+				cv::Mat ir(this->depth_height, this->depth_width, CV_16UC1, m_pData->irData[i]);
+				cv::Mat tmpIR;
+				double min, max;
+				cv::minMaxLoc(ir, &min, &max);
+				ir.convertTo(tmpIR, CV_8UC1, 1 / max * 255, 0);
+				if (i == 0)
+					canvas = tmpIR.clone();
+				else
+					cv::hconcat(canvas, tmpIR, canvas);
+			}
+			cv::imshow("ir", canvas);
+			cv::destroyWindow("rgb");
+		}
+		cv::Mat canvas;
+		for (int i = 0; i < num_of_cameras; i++)
+		{
+			cv::Mat depth(this->depth_height, this->depth_width, CV_16UC1, m_pData->depthData[i]);
+			cv::Mat tmpDepth;
+			depth.convertTo(tmpDepth, CV_8UC1, 0.05, -25);
+			if (i == 0)
+				canvas = tmpDepth.clone();
+			else
+				cv::hconcat(canvas, tmpDepth, canvas);
+		}
+		cv::imshow("depth", canvas);
+		cv::waitKey(10);
+	}
+	else
+	{
+		for (int i = 0; i < num_of_cameras; i++)
+		{
+			cv::destroyWindow("rgb");
+			cv::destroyWindow("ir");
+			cv::destroyWindow("depth");
+		}
+	}
+
 	return stream_is_updated;
 }
 
@@ -688,10 +867,16 @@ void Orbbec::threadRun(std::mutex* mtx)
 {
 	while (!m_bStopThread)
 	{
+		clock_t begin = clock();
 		mtx->lock();
 		getData();
 		mtx->unlock();
-		Sleep(100);
+		clock_t end = clock();
+		double elapsed_ms = double(end - begin) / (double)CLOCKS_PER_SEC * (double)1000.0;
+		printf("%lf\n", elapsed_ms);
+		
+		//Sleep(500);
+		m_pIpc->wait_IPC();
 	}
 }
 

@@ -10,27 +10,45 @@
 #include "opencv2\imgcodecs.hpp"
 
 #include "orbbec.h"
+#include "groundLine.h"
 
 #include <mutex>
 
 void commend_thread(Orbbec* orbbec, std::mutex* mtx);
 void takePictureForCalibration(Orbbec* orbbec, std::mutex* mtx);
 bool bTPC_flag;
+void stop_call_back(void* orbbec);
 
 int main(int argc, char** argv)
 {
-	IPC ipc("Orbbec.exe");
-	RGBDcamera *rgbdData = ipc.connect<RGBDcamera>("Orbbec.exe");
+	IPC_v2 ipc("Orbbec");
+	RGBDcamera *rgbdData = ipc.connect<RGBDcamera>("Orbbec");
+
 	std::mutex mtx;
 
 	Sleep(300);
 
 	Orbbec* orbbec = new Orbbec(rgbdData, &ipc);
 	orbbec->initialize("..\\data\\");
+	ipc.registe_exit_callback(stop_call_back, orbbec);
 		
 	int num_of_sensor = rgbdData->num_of_senseor;
-	orbbec->enableRegistration(true);
+	//orbbec->enableRegistration(true);
 	//orbbec->setRGBResolution(Orbbec::Resolution::SXGA);
+
+	GridData *grid_data = ipc.connect<GridData>("GridData");
+
+	IPC_v2 ipc_motion("MotionCalc");
+	MotionCalc *motion_calc = ipc_motion.connect<MotionCalc>("MotionCalc");
+	motion_calc->set_flag_off(Mode::FLAG::always_on);
+	//motion_calc->set_flag_on(Mode::always_on);
+	//motion_calc->set_flag_on(Mode::querying);
+	//rgbdData->set_flag_on(Mode::draw3);
+	//rgbdData->set_flag_on(Mode::draw4);
+
+	GroundLine gl(motion_calc, rgbdData, grid_data, &ipc_motion);
+	gl.getParamFromYML();
+	std::thread groundlineThread(&GroundLine::threadRun, &gl);
 
 	std::thread sensorThread(&Orbbec::threadRun, orbbec, &mtx);
 	std::thread commendThread(commend_thread, orbbec, &mtx);	
@@ -169,7 +187,7 @@ void commend_thread(Orbbec* orbbec, std::mutex *m_mtx)
 
 void takePictureForCalibration(Orbbec * orbbec, std::mutex * mtx)
 {
-	IPC ipc("takePictureForCalibration.exe");
+	IPC_v2 ipc("takePictureForCalibration.exe");
 	RGBDcamera *data2 = ipc.connect<RGBDcamera>("Orbbec.exe");
 
 	cv::Mat canvas;
@@ -235,4 +253,9 @@ void takePictureForCalibration(Orbbec * orbbec, std::mutex * mtx)
 			Sleep(1000);
 		}
 	}
+}
+
+void stop_call_back(void* orbbec)
+{
+	((Orbbec*)orbbec)->stop();
 }
