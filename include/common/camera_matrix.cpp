@@ -214,13 +214,141 @@ void calculate_depth_to_color_matrix(const struct _rgbd_parameters_* data, doubl
 
 
 // utility function
+
+bool makeParametersYaml(const std::string full_path)
+{
+	cv::FileStorage fs_write;
+	std::string cam_pos = "null";
+	int rwidth = 0, rheight = 0, dwidth = 0, dheight = 0;
+	cv::Mat ri(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat rd(1, 5, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat di(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat dd(1, 5, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat d2cR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat d2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2cR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2gR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2gT(3, 3, CV_32FC1, cv::Scalar(0.f));
+	float dmcf = 0.f, dacf = 0.f;
+
+	if (fs_write.open(full_path, cv::FileStorage::WRITE))
+	{
+		//
+		fs_write << "camera_position" << cam_pos;
+		//
+		fs_write << "rgb_width" << rwidth;
+		fs_write << "rgb_height" << rheight;
+		fs_write << "rgb_intrinsic" << ri;
+		fs_write << "rgb_distortion" << rd;
+		//
+		fs_write << "depth_width" << dwidth;
+		fs_write << "depth_height" << dheight;
+		fs_write << "depth_intrinsic" << di;
+		fs_write << "depth_distortion" << dd;
+		//
+		fs_write << "depth_to_color_Rot" << d2cR;
+		fs_write << "depth_to_color_tvec" << d2cT;
+		//
+		fs_write << "depth_multiplicative_correction_factor" << dmcf;
+		fs_write << "depth_additive_correction_factor" << dacf;
+		//
+		fs_write << "cam_to_cam_Rot" << c2cR;
+		fs_write << "cam_to_cam_tvec" << c2cT;
+		//
+		fs_write << "cam_to_ground_Rot" << c2gR;
+		fs_write << "cam_to_ground_tvec" << c2gT;
+	}
+	else
+		return false;
+	fs_write.release();
+
+	return true;
+	// write example
+	/*cv::FileStorage fs_read;
+	if (fs_read.open(full_path, cv::FileStorage::READ))
+	{
+		fs_read["camera_position"] >> cam_pos;
+		fs_read["rgb_width"] >> rwidth;
+		fs_read["rgb_height"] >> rheight;
+		fs_read["rgb_intrinsic"] >> ri;
+		fs_read["rgb_distortion"] >> rd;
+
+		fs_read["depth_width"] >> dwidth;
+		fs_read["depth_height"] >> dheight;
+		fs_read["depth_intrinsic"] >> di;
+		fs_read["depth_distortion"] >> dd;
+
+		fs_read["depth_to_color_Rot"] >> d2cR;
+		fs_read["depth_to_color_tvec"] >> d2cT;
+
+		fs_read["depth_multiplicative_correction_factor"] >> dmcf;
+		fs_read["depth_additive_correction_factor"] >> dacf;
+
+		fs_read["cam_to_cam_Rot"] >> c2cR;
+		fs_read["cam_to_cam_tvec"] >> c2cT;
+
+		fs_read["cam_to_ground_Rot"] >> c2gR;
+		fs_read["cam_to_ground_tvec"] >> c2cT;
+	}
+	else
+		return false;
+	fs_read.release();
+
+	cv::FileStorage fs_write(full_path, cv::FileStorage::WRITE);
+
+	fs_write << "camera_position" << data->cam_id;
+	cv::Mat k = cv::Mat::eye(3, 3, CV_32FC1);
+	k.at<float>(0, 0) = data->color_intrinsic.fx; k.at<float>(0, 2) = data->color_intrinsic.ppx;
+	k.at<float>(1, 1) = data->color_intrinsic.fy; k.at<float>(1, 2) = data->color_intrinsic.ppy;
+
+	fs_write << "rgb_width" << data->color_intrinsic.width;
+	fs_write << "rgb_height" << data->color_intrinsic.height;
+
+	fs_write << "rgb_intrinsic" << k;
+	fs_write << "rgb_distortion" << cv::Mat(1, 5, CV_32FC1, (float*)data->color_intrinsic.coeffs);
+
+	k.at<float>(0, 0) = data->depth_intrinsic.fx; k.at<float>(0, 2) = data->depth_intrinsic.ppx;
+	k.at<float>(1, 1) = data->depth_intrinsic.fy; k.at<float>(1, 2) = data->depth_intrinsic.ppy;
+
+	fs_write << "depth_width" << data->depth_intrinsic.width;
+	fs_write << "depth_height" << data->depth_intrinsic.height;
+
+	fs_write << "depth_intrinsic" << k;
+	fs_write << "depth_distortion" << cv::Mat(1, 5, CV_32FC1, (float*)data->depth_intrinsic.coeffs);
+	fs_write << "depth_to_color_Rot" << cv::Mat(3, 3, CV_32FC1, (float*)data->depth_to_color.rotation);
+	fs_write << "depth_to_color_tvec" << cv::Mat(3, 1, CV_32FC1, (float*)data->depth_to_color.translation);
+
+	fs_write << "depth_multiplicative_correction_factor" << dmcf;
+	fs_write << "depth_additive_correction_factor" << dacf;
+
+	fs_write << "cam_to_cam_Rot" << c2cR;
+	fs_write << "cam_to_cam_tvec" << c2cT;
+
+	fs_write << "cam_to_ground_Rot" << c2gR;
+	fs_write << "cam_to_ground_tvec" << c2gT;
+
+	fs_write.release();
+	return true;*/
+
+}
 bool writeParametersYaml(const std::string full_path, const struct _rgbd_parameters_ * data)
 {
 	cv::FileStorage fs_read;
-	std::string cam_pos;
-	//int rwidth, rheight, dwidth, dheight;
-	cv::Mat /*ri, rd, di, dd, d2cR, d2cT,*/ c2cR, c2cT, c2gR, c2gT;
-	float dmcf, dacf;
+	std::string cam_pos = "null";
+	int rwidth = 0, rheight = 0, dwidth = 0, dheight = 0;
+	cv::Mat ri(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat rd(1, 5, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat di(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat dd(1, 5, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat d2cR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat d2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2cR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2gR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2gT(3, 3, CV_32FC1, cv::Scalar(0.f));
+	float dmcf = 0.f, dacf = 0.f;
+
 	if (fs_read.open(full_path, cv::FileStorage::READ))
 	{
 		//fs_read["camera_position"] >> cam_pos;
@@ -260,7 +388,7 @@ bool writeParametersYaml(const std::string full_path, const struct _rgbd_paramet
 	fs_write << "rgb_width" << data->color_intrinsic.width;
 	fs_write << "rgb_height" << data->color_intrinsic.height;
 
-	fs_write << "rgb_intrinsics" << k;
+	fs_write << "rgb_intrinsic" << k;
 	fs_write << "rgb_distortion" << cv::Mat(1, 5, CV_32FC1, (float*)data->color_intrinsic.coeffs);
 
 	k.at<float>(0, 0) = data->depth_intrinsic.fx; k.at<float>(0, 2) = data->depth_intrinsic.ppx;
@@ -269,8 +397,9 @@ bool writeParametersYaml(const std::string full_path, const struct _rgbd_paramet
 	fs_write << "depth_width" << data->depth_intrinsic.width;
 	fs_write << "depth_height" << data->depth_intrinsic.height;
 
-	fs_write << "depth_intrinsics" << k;
+	fs_write << "depth_intrinsic" << k;
 	fs_write << "depth_distortion" << cv::Mat(1, 5, CV_32FC1, (float*)data->depth_intrinsic.coeffs);
+
 	fs_write << "depth_to_color_Rot" << cv::Mat(3, 3, CV_32FC1, (float*)data->depth_to_color.rotation);
 	fs_write << "depth_to_color_tvec" << cv::Mat(3, 1, CV_32FC1, (float*)data->depth_to_color.translation);
 
@@ -289,87 +418,104 @@ bool writeParametersYaml(const std::string full_path, const struct _rgbd_paramet
 
 bool readParameterYaml(const std::string full_path, struct _rgbd_parameters_ * data)
 {
-	cv::FileStorage fs(full_path, cv::FileStorage::READ);
-	if (!fs.isOpened()) {
-		throw std::runtime_error("file is not opened: " + full_path);
-		return false;
+	std::string cam_pos = "null";
+	int rwidth = 0, rheight = 0, dwidth = 0, dheight = 0;
+	cv::Mat ri(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat rd(1, 5, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat di(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat dd(1, 5, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat d2cR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat d2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2cR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2gR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2gT(3, 3, CV_32FC1, cv::Scalar(0.f));
+	float dmcf = 0.f, dacf = 0.f;
+
+	cv::FileStorage fs_read;
+	if (fs_read.open(full_path, cv::FileStorage::READ))
+	{
+		fs_read["camera_position"] >> cam_pos;
+		data->cam_id = cam_pos;
+
+		fs_read["rgb_width"] >> rwidth;
+		fs_read["rgb_height"] >> rheight;
+		data->color_intrinsic.width = rwidth;
+		data->color_intrinsic.height = rheight;
+
+		fs_read["rgb_intrinsic"] >> ri;
+		fs_read["rgb_distortion"] >> rd;
+		data->color_intrinsic.fx = ri.at<float>(0, 0); data->color_intrinsic.ppx = ri.at<float>(0, 2);
+		data->color_intrinsic.fy = ri.at<float>(1, 1); data->color_intrinsic.ppy = ri.at<float>(1, 2);
+		memcpy(data->color_intrinsic.coeffs, rd.data, sizeof(float) * 5);
+		
+		fs_read["depth_width"] >> dwidth;
+		fs_read["depth_height"] >> dheight;
+		data->depth_intrinsic.width = dwidth;
+		data->depth_intrinsic.height = dheight;
+
+		fs_read["depth_intrinsic"] >> di;
+		fs_read["depth_distortion"] >> dd;
+		data->depth_intrinsic.fx = di.at<float>(0, 0); data->depth_intrinsic.ppx = di.at<float>(0, 2);
+		data->depth_intrinsic.fy = di.at<float>(1, 1); data->depth_intrinsic.ppy = di.at<float>(1, 2);
+		memcpy(data->depth_intrinsic.coeffs, dd.data, sizeof(float) * 5);
+
+		fs_read["depth_to_color_Rot"] >> d2cR;
+		fs_read["depth_to_color_tvec"] >> d2cT;
+		memcpy(data->depth_to_color.rotation, d2cR.data, sizeof(float) * 9);
+		memcpy(data->depth_to_color.translation, d2cT.data, sizeof(float) * 3);
+
+		fs_read["depth_multiplicative_correction_factor"] >> dmcf;
+		fs_read["depth_additive_correction_factor"] >> dacf;
+		data->depth_slope = dmcf;
+		data->depth_offset = dacf;
+
+		fs_read["cam_to_cam_Rot"] >> c2cR;
+		fs_read["cam_to_cam_tvec"] >> c2cT;
+
+		fs_read["cam_to_ground_Rot"] >> c2gR;
+		fs_read["cam_to_ground_tvec"] >> c2cT;
 	}
-	std::string cam_pos;
-	cv::Mat rk, rcoeffs, dk, dcoeffs, d2cR, d2cT, c2cR, c2cT, c2gR, c2gT;
-	int rHeight, rWidth, dHeight, dWidth;
-	double dslope, doffset;
-
-	fs["camera_position"] >> cam_pos;
-	data->cam_id = cam_pos;
-
-	fs["rgb_height"] >> rHeight;
-	fs["rgb_width"] >> rWidth;
-	data->color_intrinsic.height = rHeight;
-	data->color_intrinsic.width = rWidth;
-
-	fs["rgb_intrinsic"] >> rk;
-	data->color_intrinsic.fx = rk.at<float>(0, 0); data->color_intrinsic.ppx = rk.at<float>(0, 2);
-	data->color_intrinsic.fy = rk.at<float>(1, 1); data->color_intrinsic.ppy = rk.at<float>(1, 2);
-
-	fs["rgb_distortion"] >> rcoeffs;
-	memcpy(data->color_intrinsic.coeffs, rcoeffs.data, sizeof(float) * 5);
-
-	fs["depth_height"] >> dHeight;
-	fs["depth_width"] >> dWidth;
-	data->depth_intrinsic.height = dHeight;
-	data->depth_intrinsic.width = dWidth;
-
-	fs["depth_intrinsic"] >> dk;
-	data->depth_intrinsic.fx = dk.at<float>(0, 0); data->depth_intrinsic.ppx = dk.at<float>(0, 2);
-	data->depth_intrinsic.fy = dk.at<float>(1, 1); data->depth_intrinsic.ppy = dk.at<float>(1, 2);
-
-	fs["depth_distortion"] >> dcoeffs;
-	memcpy(data->depth_intrinsic.coeffs, dcoeffs.data, sizeof(float) * 5);
-
-	fs["depth_to_color_Rot"] >> d2cR;
-	memcpy(data->depth_to_color.rotation, d2cR.data, sizeof(float) * 9);
-
-	fs["depth_to_color_tvec"] >> d2cT;
-	memcpy(data->depth_to_color.translation, d2cT.data, sizeof(float) * 3);
-
-	fs["depth_multiplicative_correction_factor"] >> dslope;
-	fs["depth_additive_correction_factor"] >> doffset;
-	data->depth_slope = dslope;
-	data->depth_offset = doffset;
-
-	fs["cam_to_cam_Rot"] >> c2cR;
-	fs["cam_to_cam_tvec"] >> c2cT;
-
-	fs["cam_to_ground_Rot"] >> c2gR;
-	fs["cam_to_ground_tvec"] >> c2gR;
-
-	fs.release();
-	return true;
+	else
+		return false;
+	fs_read.release();
 };
 
 bool writeDepthCorrectionFactorsYaml(const std::string full_path, const double dmcf, const double dacf)
 {
 	cv::FileStorage fs_read;
-	std::string cam_pos;
-	int rwidth, rheight, dwidth, dheight;
-	cv::Mat ri, rd, di, dd, d2cR, d2cT, c2cR, c2cT, c2gR, c2gT;
-	//float dmcf, dacf;
+	std::string cam_pos = "null";
+	int rwidth = 0, rheight = 0, dwidth = 0, dheight = 0;
+	cv::Mat ri(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat rd(1, 5, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat di(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat dd(1, 5, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat d2cR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat d2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2cR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2gR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2gT(3, 3, CV_32FC1, cv::Scalar(0.f));
+	//float dmcf = 0.f, dacf = 0.f;
 
 	if (fs_read.open(full_path, cv::FileStorage::READ))
 	{
 		fs_read["camera_position"] >> cam_pos;
+
 		fs_read["rgb_width"] >> rwidth;
 		fs_read["rgb_height"] >> rheight;
+
 		fs_read["rgb_intrinsic"] >> ri;
 		fs_read["rgb_distortion"] >> rd;
 
 		fs_read["depth_width"] >> dwidth;
 		fs_read["depth_height"] >> dheight;
-		fs_read["depth_to_color_Rot"] >> d2cR;
-		fs_read["depth_to_color_tvec"] >> d2cT;
 
 		fs_read["depth_intrinsic"] >> di;
 		fs_read["depth_distortion"] >> dd;
+
+		fs_read["depth_to_color_Rot"] >> d2cR;
+		fs_read["depth_to_color_tvec"] >> d2cT;
 
 		/*fs_read["depth_multiplicative_correction_factor"] >> dmcf;
 		fs_read["depth_additive_correction_factor"] >> dacf;*/
@@ -380,17 +526,24 @@ bool writeDepthCorrectionFactorsYaml(const std::string full_path, const double d
 		fs_read["cam_to_ground_Rot"] >> c2gR;
 		fs_read["cam_to_ground_tvec"] >> c2cT;
 	}
+	else
+		return false;
+
 	fs_read.release();
 
 	cv::FileStorage fs_write(full_path, cv::FileStorage::WRITE);
-	fs_write << "camera_postion" << cam_pos;
+
+	fs_write << "camera_position" << cam_pos;
+
 	fs_write << "rgb_width" << rwidth;
 	fs_write << "rgb_height" << rheight;
+
 	fs_write << "rgb_intrinsic" << ri;
 	fs_write << "rgb_distortion" << rd;
 
 	fs_write << "depth_width" << dwidth;
 	fs_write << "depth_height" << dheight;
+
 	fs_write << "depth_intrinsic" << di;
 	fs_write << "depth_distortion" << dd;
 
@@ -413,9 +566,7 @@ bool writeDepthCorrectionFactorsYaml(const std::string full_path, const double d
 bool readDepthCorrectionFactorsYaml(const std::string full_path, const float *dmcf, const float *dacf)
 {
 	cv::FileStorage fs_read;
-	std::string cam_pos;
-	//int rwidth, rheight, dwidth, dheight;
-	//cv::Mat ri, rd, di, dd, d2cR, d2cT, c2cR, c2cT, dmcf, dacf, c2gR, c2gT;
+
 	if (fs_read.open(full_path, cv::FileStorage::READ))
 	{
 		/*fs_read["camera_position"] >> cam_pos;
@@ -451,27 +602,40 @@ bool readDepthCorrectionFactorsYaml(const std::string full_path, const float *dm
 
 bool writeExtrinsicParametersYaml(const std::string full_path, const cv::Mat& R, const cv::Mat& t)
 {
-	cv::FileStorage fs_read;
-	std::string cam_pos;
-	int rwidth, rheight, dwidth, dheight;
-	cv::Mat ri, rd, di, dd, d2cR, d2cT/*, c2cR, c2cT*/, c2gR, c2gT;
-	float  dmcf, dacf;
+	std::string cam_pos = "null";
+	int rwidth = 0, rheight = 0, dwidth = 0, dheight = 0;
+	cv::Mat ri(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat rd(1, 5, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat di(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat dd(1, 5, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat d2cR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat d2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
+	//cv::Mat c2cR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	//cv::Mat c2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2gR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2gT(3, 3, CV_32FC1, cv::Scalar(0.f));
+	float dmcf = 0.f, dacf = 0.f;
 
+	cv::FileStorage fs_read;
+	
 	if (fs_read.open(full_path, cv::FileStorage::READ))
 	{
 		fs_read["camera_position"] >> cam_pos;
+
 		fs_read["rgb_width"] >> rwidth;
 		fs_read["rgb_height"] >> rheight;
+
 		fs_read["rgb_intrinsic"] >> ri;
 		fs_read["rgb_distortion"] >> rd;
 
 		fs_read["depth_width"] >> dwidth;
 		fs_read["depth_height"] >> dheight;
-		fs_read["depth_to_color_Rot"] >> d2cR;
-		fs_read["depth_to_color_tvec"] >> d2cT;
 
 		fs_read["depth_intrinsic"] >> di;
 		fs_read["depth_distortion"] >> dd;
+
+		fs_read["depth_to_color_Rot"] >> d2cR;
+		fs_read["depth_to_color_tvec"] >> d2cT;
 
 		fs_read["depth_multiplicative_correction_factor"] >> dmcf;
 		fs_read["depth_additive_correction_factor"] >> dacf;
@@ -485,7 +649,7 @@ bool writeExtrinsicParametersYaml(const std::string full_path, const cv::Mat& R,
 	fs_read.release();
 
 	cv::FileStorage fs_write(full_path, cv::FileStorage::WRITE);
-	fs_write << "camera_postion" << cam_pos;
+	fs_write << "camera_position" << cam_pos;
 	fs_write << "rgb_width" << rwidth;
 	fs_write << "rgb_height" << rheight;
 	fs_write << "rgb_intrinsic" << ri;
@@ -515,10 +679,7 @@ bool writeExtrinsicParametersYaml(const std::string full_path, const cv::Mat& R,
 bool readExtrinsicParametersYaml(const std::string full_path, cv::Mat& R, cv::Mat& t)
 {
 	cv::FileStorage fs_read;
-	std::string cam_pos;
-	//int rwidth, rheight, dwidth, dheight;
-	cv::Mat /*ri, rd, di, dd, d2cR, d2cT, */c2cR, c2cT/*, dmcf, dacf, c2gR, c2gT*/;
-	
+
 	if (fs_read.open(full_path, cv::FileStorage::READ))
 	{
 		/*fs_read["camera_position"] >> cam_pos;
@@ -555,12 +716,22 @@ bool readExtrinsicParametersYaml(const std::string full_path, cv::Mat& R, cv::Ma
 
 bool writeCam2GroundRt(const std::string full_path, const cv::Mat& R, const cv::Mat& t)
 {
-	cv::FileStorage fs_read;
-	std::string cam_pos;
-	int rwidth, rheight, dwidth, dheight;
-	cv::Mat ri, rd, di, dd, d2cR, d2cT, c2cR, c2cT/*, c2gR, c2gT*/;
-	float dmcf, dacf;
+	std::string cam_pos = "null";
+	int rwidth = 0, rheight = 0, dwidth = 0, dheight = 0;
+	cv::Mat ri(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat rd(1, 5, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat di(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat dd(1, 5, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat d2cR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat d2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2cR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
+	//cv::Mat c2gR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	//cv::Mat c2gT(3, 3, CV_32FC1, cv::Scalar(0.f));
+	float dmcf = 0.f, dacf = 0.f;
 
+	cv::FileStorage fs_read;
+	
 	if (fs_read.open(full_path, cv::FileStorage::READ))
 	{
 		fs_read["camera_position"] >> cam_pos;
@@ -571,11 +742,12 @@ bool writeCam2GroundRt(const std::string full_path, const cv::Mat& R, const cv::
 
 		fs_read["depth_width"] >> dwidth;
 		fs_read["depth_height"] >> dheight;
-		fs_read["depth_to_color_Rot"] >> d2cR;
-		fs_read["depth_to_color_tvec"] >> d2cT;
 
 		fs_read["depth_intrinsic"] >> di;
 		fs_read["depth_distortion"] >> dd;
+
+		fs_read["depth_to_color_Rot"] >> d2cR;
+		fs_read["depth_to_color_tvec"] >> d2cT;
 
 		fs_read["depth_multiplicative_correction_factor"] >> dmcf;
 		fs_read["depth_additive_correction_factor"] >> dacf;
@@ -589,7 +761,7 @@ bool writeCam2GroundRt(const std::string full_path, const cv::Mat& R, const cv::
 	fs_read.release();
 
 	cv::FileStorage fs_write(full_path, cv::FileStorage::WRITE);
-	fs_write << "camera_postion" << cam_pos;
+	fs_write << "camera_position" << cam_pos;
 	fs_write << "rgb_width" << rwidth;
 	fs_write << "rgb_height" << rheight;
 	fs_write << "rgb_intrinsic" << ri;
@@ -598,7 +770,7 @@ bool writeCam2GroundRt(const std::string full_path, const cv::Mat& R, const cv::
 	fs_write << "depth_width" << dwidth;
 	fs_write << "depth_height" << dheight;
 	fs_write << "depth_intrinsic" << di;
-	fs_write << "depth_distrotion" << dd;
+	fs_write << "depth_distortion" << dd;
 
 	fs_write << "depth_to_color_Rot" << d2cR;
 	fs_write << "depth_to_color_tvec" << d2cT;
@@ -619,9 +791,7 @@ bool writeCam2GroundRt(const std::string full_path, const cv::Mat& R, const cv::
 bool readCam2GroundRt(const std::string full_path, cv::Mat& R, cv::Mat& t)
 {
 	cv::FileStorage fs_read;
-	std::string cam_pos;
-	//int rwidth, rheight, dwidth, dheight;
-	//cv::Mat ri, rd, di, dd, d2cR, d2cT, c2cR, c2cT, dmcf, dacf, c2gR, c2gT;
+	
 	if (fs_read.open(full_path, cv::FileStorage::READ))
 	{
 		/*fs_read["camera_position"] >> cam_pos;
@@ -641,7 +811,7 @@ bool readCam2GroundRt(const std::string full_path, cv::Mat& R, cv::Mat& t)
 
 		fs_read["depth_multiplicative_correction_factor"] >> *(float*)dmcf;
 		fs_read["depth_additive_correction_factor"] >> *(float*)dacf;
-		
+
 
 		fs_read["cam_to_cam_Rot"] >> R;
 		fs_read["cam_to_cam_tvec"] >> t;*/
@@ -667,7 +837,12 @@ void readCameraOrder(std::string full_path, std::string& camera_name, std::vecto
 	int num_of_cam = (int)fs["num_of_cameras"];
 	ref_cam_idx = (int)fs["ref_camera_idx"];
 	std::vector<std::string> order(num_of_cam);
-	if (num_of_cam == 3)
+	if (num_of_cam == 2)
+	{
+		order[(int)fs["left"]] = "left";
+		order[(int)fs["right"]] = "right";
+	}
+	else if (num_of_cam == 3)
 	{
 		order[(int)fs["right"]] = "right";
 		order[(int)fs["left"]] = "left";
