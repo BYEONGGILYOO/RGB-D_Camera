@@ -34,6 +34,8 @@ void calculate_depth_to_color_matrix(const struct _rgbd_parameters_* data, float
 void calculate_depth_to_color_matrix(const struct _rgbd_parameters_* data, double* transform_matrix);
 
 // utility fuction
+bool makeParametersYaml(const std::string full_path);
+bool printAllParametersYaml(const std::string full_path);
 bool writeParametersYaml(const std::string full_path, const struct _rgbd_parameters_ * data);
 bool readParameterYaml(const std::string full_path, struct _rgbd_parameters_ * data);
 bool writeDepthCorrectionFactorsYaml(const std::string full_path, const double dmcf, const double dacf);

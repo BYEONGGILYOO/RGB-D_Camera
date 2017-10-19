@@ -217,20 +217,21 @@ void calculate_depth_to_color_matrix(const struct _rgbd_parameters_* data, doubl
 
 bool makeParametersYaml(const std::string full_path)
 {
-	cv::FileStorage fs_write;
 	std::string cam_pos = "null";
 	int rwidth = 0, rheight = 0, dwidth = 0, dheight = 0;
-	cv::Mat ri(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat ri = cv::Mat::eye(3, 3, CV_32FC1);
 	cv::Mat rd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat di(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat di = cv::Mat::eye(3, 3, CV_32FC1);
 	cv::Mat dd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat d2cR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat d2cR = cv::Mat::eye(3, 3, CV_32FC1);
 	cv::Mat d2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2cR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2cR = cv::Mat::eye(3, 3, CV_32FC1);
 	cv::Mat c2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2gR(3, 3, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2gT(3, 3, CV_32FC1, cv::Scalar(0.f));
-	float dmcf = 0.f, dacf = 0.f;
+	cv::Mat c2gR = cv::Mat::eye(3, 3, CV_32FC1);
+	cv::Mat c2gT(3, 1, CV_32FC1, cv::Scalar(0.f));
+	float dmcf = 1.f, dacf = 0.f;
+
+	cv::FileStorage fs_write;
 
 	if (fs_write.open(full_path, cv::FileStorage::WRITE))
 	{
@@ -332,22 +333,100 @@ bool makeParametersYaml(const std::string full_path)
 	return true;*/
 
 }
-bool writeParametersYaml(const std::string full_path, const struct _rgbd_parameters_ * data)
+
+bool printAllParametersYaml(const std::string full_path)
 {
-	cv::FileStorage fs_read;
 	std::string cam_pos = "null";
 	int rwidth = 0, rheight = 0, dwidth = 0, dheight = 0;
-	cv::Mat ri(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat ri = cv::Mat::eye(3, 3, CV_32FC1);
 	cv::Mat rd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat di(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat di = cv::Mat::eye(3, 3, CV_32FC1);
 	cv::Mat dd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat d2cR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat d2cR = cv::Mat::eye(3, 3, CV_32FC1);
 	cv::Mat d2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2cR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2cR = cv::Mat::eye(3, 3, CV_32FC1);
 	cv::Mat c2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2gR(3, 3, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2gT(3, 3, CV_32FC1, cv::Scalar(0.f));
-	float dmcf = 0.f, dacf = 0.f;
+	cv::Mat c2gR = cv::Mat::eye(3, 3, CV_32FC1);
+	cv::Mat c2gT(3, 1, CV_32FC1, cv::Scalar(0.f));
+	float dmcf = 1.f, dacf = 0.f;
+
+	cv::FileStorage fs_read;
+
+	if (fs_read.open(full_path, cv::FileStorage::READ))
+	{
+		fs_read["camera_position"] >> cam_pos;
+
+		fs_read["rgb_width"] >> rwidth;
+		fs_read["rgb_height"] >> rheight;
+		fs_read["rgb_intrinsic"] >> ri;
+		fs_read["rgb_distortion"] >> rd;
+
+		fs_read["depth_width"] >> dwidth;
+		fs_read["depth_height"] >> dheight;
+		fs_read["depth_intrinsic"] >> di;
+		fs_read["depth_distortion"] >> dd;
+
+		fs_read["depth_to_color_Rot"] >> d2cR;
+		fs_read["depth_to_color_tvec"] >> d2cT;
+		
+		fs_read["depth_multiplicative_correction_factor"] >> dmcf;
+		fs_read["depth_additive_correction_factor"] >> dacf;
+
+		fs_read["cam_to_cam_Rot"] >> c2cR;
+		fs_read["cam_to_cam_tvec"] >> c2cT;
+
+		fs_read["cam_to_ground_Rot"] >> c2gR;
+		fs_read["cam_to_ground_tvec"] >> c2gT;
+	}
+	else
+		return false;
+	fs_read.release();
+
+	std::cout << "==== ==== ==== ==== ==== ==== ==== ====" << std::endl;
+	std::cout << "Camera Position: " << cam_pos << std::endl << std::endl;
+	std::cout << "---- ---- ---- ---- ---- ---- ---- ----" << std::endl;
+	std::cout << "rgb width:\t" << rwidth << std::endl;
+	std::cout << "rgb height:\t" << rheight << std::endl;
+	std::cout << "rgb intrinsic:\n" << ri << std::endl;
+	std::cout << "rgb distortion:\n" << rd << std::endl << std::endl;
+	std::cout << "---- ---- ---- ---- ---- ---- ---- ----" << std::endl;
+	std::cout << "depth width:\t" << rwidth << std::endl;
+	std::cout << "depth height:\t" << rheight << std::endl;
+	std::cout << "depth intrinsic:\n" << ri << std::endl;
+	std::cout << "depth distortion:\n" << rd << std::endl << std::endl;
+	std::cout << "---- ---- ---- ---- ---- ---- ---- ----" << std::endl;
+	std::cout << "depth to color Rot:\n" << d2cR << std::endl;
+	std::cout << "depth to color tvec:\n" << d2cT << std::endl << std::endl;
+	std::cout << "---- ---- ---- ---- ---- ---- ---- ----" << std::endl;
+	std::cout << "depth_multiplicative_correction_factor: " << dmcf << std::endl;
+	std::cout << "depth_additive_correction_factor: " << dacf << std::endl << std::endl;
+	std::cout << "---- ---- ---- ---- ---- ---- ---- ----" << std::endl;
+	std::cout << "cam to cam Rot:\n" << c2cR << std::endl;
+	std::cout << "cam to cam tvec:\n" << c2cT << std::endl << std::endl;
+	std::cout << "---- ---- ---- ---- ---- ---- ---- ----" << std::endl;
+	std::cout << "cam to ground Rot:\n" << c2gR << std::endl;
+	std::cout << "cam to ground tvec:\n" << c2gT << std::endl << std::endl;
+	std::cout << "==== ==== ==== ==== ==== ==== ==== ====" << std::endl;
+	return true;
+}
+
+bool writeParametersYaml(const std::string full_path, const struct _rgbd_parameters_ * data)
+{
+	std::string cam_pos = "null";
+	int rwidth = 0, rheight = 0, dwidth = 0, dheight = 0;
+	cv::Mat ri = cv::Mat::eye(3, 3, CV_32FC1);
+	cv::Mat rd(1, 5, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat di = cv::Mat::eye(3, 3, CV_32FC1);
+	cv::Mat dd(1, 5, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat d2cR = cv::Mat::eye(3, 3, CV_32FC1);
+	cv::Mat d2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2cR = cv::Mat::eye(3, 3, CV_32FC1);
+	cv::Mat c2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2gR = cv::Mat::eye(3, 3, CV_32FC1);
+	cv::Mat c2gT(3, 1, CV_32FC1, cv::Scalar(0.f));
+	float dmcf = 1.f, dacf = 0.f;
+
+	cv::FileStorage fs_read;
 
 	if (fs_read.open(full_path, cv::FileStorage::READ))
 	{
@@ -420,17 +499,17 @@ bool readParameterYaml(const std::string full_path, struct _rgbd_parameters_ * d
 {
 	std::string cam_pos = "null";
 	int rwidth = 0, rheight = 0, dwidth = 0, dheight = 0;
-	cv::Mat ri(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat ri = cv::Mat::eye(3, 3, CV_32FC1);
 	cv::Mat rd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat di(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat di = cv::Mat::eye(3, 3, CV_32FC1);
 	cv::Mat dd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat d2cR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat d2cR = cv::Mat::eye(3, 3, CV_32FC1);
 	cv::Mat d2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2cR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2cR = cv::Mat::eye(3, 3, CV_32FC1);
 	cv::Mat c2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2gR(3, 3, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2gT(3, 3, CV_32FC1, cv::Scalar(0.f));
-	float dmcf = 0.f, dacf = 0.f;
+	cv::Mat c2gR = cv::Mat::eye(3, 3, CV_32FC1);
+	cv::Mat c2gT(3, 1, CV_32FC1, cv::Scalar(0.f));
+	float dmcf = 1.f, dacf = 0.f;
 
 	cv::FileStorage fs_read;
 	if (fs_read.open(full_path, cv::FileStorage::READ))
@@ -483,20 +562,21 @@ bool readParameterYaml(const std::string full_path, struct _rgbd_parameters_ * d
 
 bool writeDepthCorrectionFactorsYaml(const std::string full_path, const double dmcf, const double dacf)
 {
-	cv::FileStorage fs_read;
 	std::string cam_pos = "null";
 	int rwidth = 0, rheight = 0, dwidth = 0, dheight = 0;
-	cv::Mat ri(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat ri = cv::Mat::eye(3, 3, CV_32FC1);
 	cv::Mat rd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat di(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat di = cv::Mat::eye(3, 3, CV_32FC1);
 	cv::Mat dd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat d2cR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat d2cR = cv::Mat::eye(3, 3, CV_32FC1);
 	cv::Mat d2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2cR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2cR = cv::Mat::eye(3, 3, CV_32FC1);
 	cv::Mat c2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2gR(3, 3, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2gT(3, 3, CV_32FC1, cv::Scalar(0.f));
-	//float dmcf = 0.f, dacf = 0.f;
+	cv::Mat c2gR = cv::Mat::eye(3, 3, CV_32FC1);
+	cv::Mat c2gT(3, 1, CV_32FC1, cv::Scalar(0.f));
+	//float dmcf = 1.f, dacf = 0.f;
+
+	cv::FileStorage fs_read;
 
 	if (fs_read.open(full_path, cv::FileStorage::READ))
 	{
@@ -604,17 +684,17 @@ bool writeExtrinsicParametersYaml(const std::string full_path, const cv::Mat& R,
 {
 	std::string cam_pos = "null";
 	int rwidth = 0, rheight = 0, dwidth = 0, dheight = 0;
-	cv::Mat ri(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat ri = cv::Mat::eye(3, 3, CV_32FC1);
 	cv::Mat rd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat di(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat di = cv::Mat::eye(3, 3, CV_32FC1);
 	cv::Mat dd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat d2cR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat d2cR = cv::Mat::eye(3, 3, CV_32FC1);
 	cv::Mat d2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	//cv::Mat c2cR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	//cv::Mat c2cR = cv::Mat::eye(3, 3, CV_32FC1);
 	//cv::Mat c2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2gR(3, 3, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2gT(3, 3, CV_32FC1, cv::Scalar(0.f));
-	float dmcf = 0.f, dacf = 0.f;
+	cv::Mat c2gR = cv::Mat::eye(3, 3, CV_32FC1);
+	cv::Mat c2gT(3, 1, CV_32FC1, cv::Scalar(0.f));
+	float dmcf = 1.f, dacf = 0.f;
 
 	cv::FileStorage fs_read;
 	
@@ -718,17 +798,17 @@ bool writeCam2GroundRt(const std::string full_path, const cv::Mat& R, const cv::
 {
 	std::string cam_pos = "null";
 	int rwidth = 0, rheight = 0, dwidth = 0, dheight = 0;
-	cv::Mat ri(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat ri = cv::Mat::eye(3, 3, CV_32FC1);
 	cv::Mat rd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat di(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat di = cv::Mat::eye(3, 3, CV_32FC1);
 	cv::Mat dd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat d2cR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat d2cR = cv::Mat::eye(3, 3, CV_32FC1);
 	cv::Mat d2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2cR(3, 3, CV_32FC1, cv::Scalar(0.f));
+	cv::Mat c2cR = cv::Mat::eye(3, 3, CV_32FC1);
 	cv::Mat c2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	//cv::Mat c2gR(3, 3, CV_32FC1, cv::Scalar(0.f));
-	//cv::Mat c2gT(3, 3, CV_32FC1, cv::Scalar(0.f));
-	float dmcf = 0.f, dacf = 0.f;
+	//cv::Mat c2gR = cv::Mat::eye(3, 3, CV_32FC1);
+	//cv::Mat c2gT(3, 1, CV_32FC1, cv::Scalar(0.f));
+	float dmcf = 1.f, dacf = 0.f;
 
 	cv::FileStorage fs_read;
 	
