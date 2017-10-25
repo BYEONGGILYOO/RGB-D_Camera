@@ -695,8 +695,8 @@ struct ExtrinsicCalibration : Mode
 	char argv[100][50];
 
 	// for test
-	float depth_slope[3];
-	float depth_offset[3];
+	double depth_slope[3];
+	double depth_offset[3];
 
 	// output
 	bool isCalibrated;
@@ -714,11 +714,15 @@ struct ExtrinsicCalibration : Mode
 		memset(argv, 0, sizeof(char) * 100 * 50);
 
 		for (int i = 0; i < 3; i++) {
-			depth_slope[i] = 1.f;
-			depth_offset[i] = 0.f;
+			depth_slope[i] = 1.0;
+			depth_offset[i] = 0.0;
 		}
 
 		memset(cam_to_cam_R, 0, sizeof(double) * 3 * 9);
+		for (int i = 0; i < 3; i++)
+		{
+			cam_to_cam_R[i][0] = cam_to_cam_R[i][4] = cam_to_cam_R[i][8] = 1.0;
+		}
 		memset(cam_to_cam_tvec, 0, sizeof(double) * 3 * 3);
 		memset(tot_error, 0, sizeof(double) * 3);
 		memset(avr_error, 0, sizeof(double) * 3);
@@ -735,16 +739,18 @@ struct GroundDetectionData : Mode
 	int iterator;
 
 	// output
-	double R[9];
-	double tvec[3];
+	double cam_to_ground_R[9];
+	double cam_to_ground_tvec[3];
 	bool isDone;
 
 	GroundDetectionData()
 		:bStart(false), iterator(20), isDone(false)
 	{
 		memset(camera_name, 0, sizeof(char) * 50);
-		memset(R, 0, sizeof(double) * 9);
-		memset(tvec, 0, sizeof(double) * 3);
+		memset(cam_to_ground_R, 0, sizeof(double) * 9);
+		cam_to_ground_R[0] = cam_to_ground_R[4] = cam_to_ground_R[8] = 1.0;
+		
+		memset(cam_to_ground_tvec, 0, sizeof(double) * 3);
 	}
 };
 struct MultipleCalibration
@@ -769,7 +775,7 @@ struct MultipleCalibration
 		this->isDone = gd.isDone;
 
 		memcpy(this->camera_name, gd.camera_name, sizeof(char) * 30);
-		memcpy(this->R, gd.R, sizeof(double) * 9);
-		memcpy(this->tvec, gd.tvec, sizeof(double) * 3);
+		memcpy(this->cam_to_ground_R, gd.cam_to_ground_R, sizeof(double) * 9);
+		memcpy(this->cam_to_ground_tvec, gd.cam_to_ground_tvec, sizeof(double) * 3);
 	}
 };

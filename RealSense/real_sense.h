@@ -860,7 +860,7 @@ void RealSense::getDepth(int dev_idx)
 }
 void RealSense::threadRun(void)
 {
-	function_cummunication* state = m_ipc->get_state("RealSense.exe");
+	//function_cummunication* state = m_ipc->get_state("RealSense.exe");
 
 	while (1)
 	{
@@ -878,7 +878,7 @@ void RealSense::threadRun(void)
 		*/
 		//if (GetAsyncKeyState(VK_ESCAPE)) state->trigger = 0;
 
-		if (m_ipc->exit())
+		if (/*m_ipc->exit()*/0)
 		{
 			Sleep(30);
 			break;

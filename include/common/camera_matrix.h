@@ -39,12 +39,18 @@ bool printAllParametersYaml(const std::string full_path);
 bool writeParametersYaml(const std::string full_path, const struct _rgbd_parameters_ * data);
 bool readParameterYaml(const std::string full_path, struct _rgbd_parameters_ * data);
 bool writeDepthCorrectionFactorsYaml(const std::string full_path, const double dmcf, const double dacf);
-bool readDepthCorrectionFactorsYaml(const std::string full_path, const float *dmcf, const float *dacf);
-bool writeExtrinsicParametersYaml(const std::string full_path, const cv::Mat& R, const cv::Mat& t);
-bool readExtrinsicParametersYaml(const std::string full_path, cv::Mat& R, cv::Mat& t);
-bool writeCam2GroundRt(const std::string full_path, const cv::Mat& R, const cv::Mat& t);
-bool readCam2GroundRt(const std::string full_path, cv::Mat& R, cv::Mat& t);
+bool readDepthCorrectionFactorsYaml(const std::string full_path, const double *dmcf, const double *dacf);
+bool writeCam2CamRtYaml(const std::string full_path, const cv::Mat& R, const cv::Mat& t);
+bool readCam2CamRtYaml(const std::string full_path, cv::Mat& R, cv::Mat& t);
+bool writeCam2GroundRtYaml(const std::string full_path, const cv::Mat& R, const cv::Mat& t);
+bool readCam2GroundRtYaml(const std::string full_path, cv::Mat& R, cv::Mat& t);
+bool writeCam2RobotRtYaml(const std::string full_path, const cv::Mat& R, const cv::Mat& t);
+bool readCam2RobotRtYaml(const std::string full_path, cv::Mat& R, cv::Mat &t);
+bool writeAllExtrinsicYaml(const std::string full_path, const cv::Mat& R, const cv::Mat& t);
+bool readAllExtrinsicYaml(const std::string full_path, cv::Mat& R, cv::Mat &t);
 void readCameraOrder(std::string full_path, std::string& camera_name, std::vector<std::string>& cam_order, int& ref_cam_idx);
+
+void rotate2RobotDirection(const double th, cv::Mat& R);
 
 
 // basic camera parameters

@@ -26,8 +26,16 @@ int main(int argc, char** argv)
 	Sleep(300);
 
 	Orbbec* orbbec = new Orbbec(rgbdData, &ipc);
-	orbbec->initialize("..\\data\\");
-		
+	try
+	{
+		orbbec->initialize("..\\data\\");
+	}
+	catch (const std::exception& ex)
+	{
+		ex.what();
+		return 1;
+	}
+			
 	int num_of_sensor = rgbdData->num_of_senseor;
 	orbbec->enableRegistration(true);
 	//orbbec->setRGBResolution(Orbbec::Resolution::SXGA);

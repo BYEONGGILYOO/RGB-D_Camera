@@ -16,7 +16,7 @@ int main(void)
 {
 	IPC ipc("RealSense.exe");
 	RGBDcamera *rgbdData = ipc.connect<RGBDcamera>("RealSense.exe");
-	ipc.start("RealSense.exe");
+	//ipc.start("RealSense.exe");
 
 	RealSense realsense(rgbdData, &ipc);
 

@@ -219,17 +219,16 @@ bool makeParametersYaml(const std::string full_path)
 {
 	std::string cam_pos = "null";
 	int rwidth = 0, rheight = 0, dwidth = 0, dheight = 0;
-	cv::Mat ri = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat rd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat di = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat dd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat d2cR = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat d2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2cR = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat c2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2gR = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat c2gT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	float dmcf = 1.f, dacf = 0.f;
+	cv::Mat ri = cv::Mat::eye(3, 3, CV_64FC1);
+	cv::Mat rd(1, 5, CV_64FC1, cv::Scalar(0.f));
+	cv::Mat di = cv::Mat::eye(3, 3, CV_64FC1);
+	cv::Mat dd(1, 5, CV_64FC1, cv::Scalar(0.f));
+	cv::Mat d2cRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2cRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2gRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2rRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat allMat = cv::Mat::eye(4, 4, CV_64FC1);
+	double dmcf = 1.f, dacf = 0.f;
 
 	cv::FileStorage fs_write;
 
@@ -248,17 +247,18 @@ bool makeParametersYaml(const std::string full_path)
 		fs_write << "depth_intrinsic" << di;
 		fs_write << "depth_distortion" << dd;
 		//
-		fs_write << "depth_to_color_Rot" << d2cR;
-		fs_write << "depth_to_color_tvec" << d2cT;
+		fs_write << "depth_to_color_RT" << d2cRT;
 		//
 		fs_write << "depth_multiplicative_correction_factor" << dmcf;
 		fs_write << "depth_additive_correction_factor" << dacf;
 		//
-		fs_write << "cam_to_cam_Rot" << c2cR;
-		fs_write << "cam_to_cam_tvec" << c2cT;
+		fs_write << "cam_to_cam_RT" << c2cRT;
 		//
-		fs_write << "cam_to_ground_Rot" << c2gR;
-		fs_write << "cam_to_ground_tvec" << c2gT;
+		fs_write << "cam_to_ground_RT" << c2gRT;
+		//
+		fs_write << "cam_to_robot_RT" << c2rRT;
+		//
+		fs_write << "all_extrinsic_matrix" << allMat;
 	}
 	else
 		return false;
@@ -280,17 +280,18 @@ bool makeParametersYaml(const std::string full_path)
 		fs_read["depth_intrinsic"] >> di;
 		fs_read["depth_distortion"] >> dd;
 
-		fs_read["depth_to_color_Rot"] >> d2cR;
-		fs_read["depth_to_color_tvec"] >> d2cT;
-
+		fs_read["depth_to_color_RT"] >> d2cRT;
+		
 		fs_read["depth_multiplicative_correction_factor"] >> dmcf;
 		fs_read["depth_additive_correction_factor"] >> dacf;
 
-		fs_read["cam_to_cam_Rot"] >> c2cR;
-		fs_read["cam_to_cam_tvec"] >> c2cT;
-
-		fs_read["cam_to_ground_Rot"] >> c2gR;
-		fs_read["cam_to_ground_tvec"] >> c2cT;
+		fs_read["cam_to_cam_RT"] >> c2cRT;
+		
+		fs_read["cam_to_ground_RT"] >> c2gRT;
+		
+		fs_read["cam_to_robot_RT"] >> c2rRT;
+		
+		fs_read["all_extrinsic_matrix"] >> allMat;
 	}
 	else
 		return false;
@@ -299,35 +300,37 @@ bool makeParametersYaml(const std::string full_path)
 	cv::FileStorage fs_write(full_path, cv::FileStorage::WRITE);
 
 	fs_write << "camera_position" << data->cam_id;
-	cv::Mat k = cv::Mat::eye(3, 3, CV_32FC1);
-	k.at<float>(0, 0) = data->color_intrinsic.fx; k.at<float>(0, 2) = data->color_intrinsic.ppx;
-	k.at<float>(1, 1) = data->color_intrinsic.fy; k.at<float>(1, 2) = data->color_intrinsic.ppy;
+	cv::Mat k = cv::Mat::eye(3, 3, CV_64FC1);
+	k.at<double>(0, 0) = data->color_intrinsic.fx; k.at<double>(0, 2) = data->color_intrinsic.ppx;
+	k.at<double>(1, 1) = data->color_intrinsic.fy; k.at<double>(1, 2) = data->color_intrinsic.ppy;
 
 	fs_write << "rgb_width" << data->color_intrinsic.width;
 	fs_write << "rgb_height" << data->color_intrinsic.height;
 
 	fs_write << "rgb_intrinsic" << k;
-	fs_write << "rgb_distortion" << cv::Mat(1, 5, CV_32FC1, (float*)data->color_intrinsic.coeffs);
+	//fs_write << "rgb_distortion" << cv::Mat(1, 5, CV_64FC1, (double*)data->color_intrinsic.coeffs);
 
-	k.at<float>(0, 0) = data->depth_intrinsic.fx; k.at<float>(0, 2) = data->depth_intrinsic.ppx;
-	k.at<float>(1, 1) = data->depth_intrinsic.fy; k.at<float>(1, 2) = data->depth_intrinsic.ppy;
+	k.at<double>(0, 0) = data->depth_intrinsic.fx; k.at<double>(0, 2) = data->depth_intrinsic.ppx;
+	k.at<double>(1, 1) = data->depth_intrinsic.fy; k.at<double>(1, 2) = data->depth_intrinsic.ppy;
 
 	fs_write << "depth_width" << data->depth_intrinsic.width;
 	fs_write << "depth_height" << data->depth_intrinsic.height;
 
 	fs_write << "depth_intrinsic" << k;
-	fs_write << "depth_distortion" << cv::Mat(1, 5, CV_32FC1, (float*)data->depth_intrinsic.coeffs);
-	fs_write << "depth_to_color_Rot" << cv::Mat(3, 3, CV_32FC1, (float*)data->depth_to_color.rotation);
-	fs_write << "depth_to_color_tvec" << cv::Mat(3, 1, CV_32FC1, (float*)data->depth_to_color.translation);
+	//fs_write << "depth_distortion" << cv::Mat(1, 5, CV_64FC1, (double*)data->depth_intrinsic.coeffs);
 
+	fs_write << "depth_to_color_RT" << 
+	
 	fs_write << "depth_multiplicative_correction_factor" << dmcf;
 	fs_write << "depth_additive_correction_factor" << dacf;
 
-	fs_write << "cam_to_cam_Rot" << c2cR;
-	fs_write << "cam_to_cam_tvec" << c2cT;
-
-	fs_write << "cam_to_ground_Rot" << c2gR;
-	fs_write << "cam_to_ground_tvec" << c2gT;
+	fs_write << "cam_to_cam_RT" << c2cRT;
+	
+	fs_write << "cam_to_ground_RT" << c2gRT;
+	
+	fs_write << "cam_to_robot_RT" << c2rRT;
+	//
+	fs_write << "all_extrinsic_matrix" << allMat;
 
 	fs_write.release();
 	return true;*/
@@ -338,17 +341,16 @@ bool printAllParametersYaml(const std::string full_path)
 {
 	std::string cam_pos = "null";
 	int rwidth = 0, rheight = 0, dwidth = 0, dheight = 0;
-	cv::Mat ri = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat rd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat di = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat dd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat d2cR = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat d2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2cR = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat c2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2gR = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat c2gT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	float dmcf = 1.f, dacf = 0.f;
+	cv::Mat ri = cv::Mat::eye(3, 3, CV_64FC1);
+	cv::Mat rd(1, 5, CV_64FC1, cv::Scalar(0.f));
+	cv::Mat di = cv::Mat::eye(3, 3, CV_64FC1);
+	cv::Mat dd(1, 5, CV_64FC1, cv::Scalar(0.f));
+	cv::Mat d2cRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2cRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2gRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2rRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat allMat = cv::Mat::eye(4, 4, CV_64FC1);
+	double dmcf = 1.f, dacf = 0.f;
 
 	cv::FileStorage fs_read;
 
@@ -366,17 +368,18 @@ bool printAllParametersYaml(const std::string full_path)
 		fs_read["depth_intrinsic"] >> di;
 		fs_read["depth_distortion"] >> dd;
 
-		fs_read["depth_to_color_Rot"] >> d2cR;
-		fs_read["depth_to_color_tvec"] >> d2cT;
-		
+		fs_read["depth_to_color_RT"] >> d2cRT;
+				
 		fs_read["depth_multiplicative_correction_factor"] >> dmcf;
 		fs_read["depth_additive_correction_factor"] >> dacf;
 
-		fs_read["cam_to_cam_Rot"] >> c2cR;
-		fs_read["cam_to_cam_tvec"] >> c2cT;
-
-		fs_read["cam_to_ground_Rot"] >> c2gR;
-		fs_read["cam_to_ground_tvec"] >> c2gT;
+		fs_read["cam_to_cam_RT"] >> c2cRT;
+		
+		fs_read["cam_to_ground_RT"] >> c2gRT;
+		
+		fs_read["cam_to_robot_RT"] >> c2rRT;
+		
+		fs_read["all_extrinsic_matrix"] >> allMat;
 	}
 	else
 		return false;
@@ -395,17 +398,18 @@ bool printAllParametersYaml(const std::string full_path)
 	std::cout << "depth intrinsic:\n" << ri << std::endl;
 	std::cout << "depth distortion:\n" << rd << std::endl << std::endl;
 	std::cout << "---- ---- ---- ---- ---- ---- ---- ----" << std::endl;
-	std::cout << "depth to color Rot:\n" << d2cR << std::endl;
-	std::cout << "depth to color tvec:\n" << d2cT << std::endl << std::endl;
+	std::cout << "depth to color RT:\n" << d2cRT << std::endl << std::endl;
 	std::cout << "---- ---- ---- ---- ---- ---- ---- ----" << std::endl;
 	std::cout << "depth_multiplicative_correction_factor: " << dmcf << std::endl;
 	std::cout << "depth_additive_correction_factor: " << dacf << std::endl << std::endl;
 	std::cout << "---- ---- ---- ---- ---- ---- ---- ----" << std::endl;
-	std::cout << "cam to cam Rot:\n" << c2cR << std::endl;
-	std::cout << "cam to cam tvec:\n" << c2cT << std::endl << std::endl;
+	std::cout << "cam to cam RT:\n" << c2cRT << std::endl << std::endl;
 	std::cout << "---- ---- ---- ---- ---- ---- ---- ----" << std::endl;
-	std::cout << "cam to ground Rot:\n" << c2gR << std::endl;
-	std::cout << "cam to ground tvec:\n" << c2gT << std::endl << std::endl;
+	std::cout << "cam to ground RT:\n" << c2gRT << std::endl << std::endl;
+	std::cout << "---- ---- ---- ---- ---- ---- ---- ----" << std::endl;
+	std::cout << "cam to robot RT:\n" << c2rRT << std::endl << std::endl;
+	std::cout << "---- ---- ---- ---- ---- ---- ---- ----" << std::endl;
+	std::cout << "all extrinsic matrix:\n" << allMat << std::endl << std::endl;
 	std::cout << "==== ==== ==== ==== ==== ==== ==== ====" << std::endl;
 	return true;
 }
@@ -414,17 +418,16 @@ bool writeParametersYaml(const std::string full_path, const struct _rgbd_paramet
 {
 	std::string cam_pos = "null";
 	int rwidth = 0, rheight = 0, dwidth = 0, dheight = 0;
-	cv::Mat ri = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat rd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat di = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat dd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat d2cR = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat d2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2cR = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat c2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2gR = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat c2gT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	float dmcf = 1.f, dacf = 0.f;
+	cv::Mat ri = cv::Mat::eye(3, 3, CV_64FC1);
+	cv::Mat rd(1, 5, CV_64FC1, cv::Scalar(0.f));
+	cv::Mat di = cv::Mat::eye(3, 3, CV_64FC1);
+	cv::Mat dd(1, 5, CV_64FC1, cv::Scalar(0.f));
+	cv::Mat d2cRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2cRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2gRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2rRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat allMat = cv::Mat::eye(4, 4, CV_64FC1);
+	double dmcf = 1.f, dacf = 0.f;
 
 	cv::FileStorage fs_read;
 
@@ -447,11 +450,13 @@ bool writeParametersYaml(const std::string full_path, const struct _rgbd_paramet
 		fs_read["depth_multiplicative_correction_factor"] >> dmcf;
 		fs_read["depth_additive_correction_factor"] >> dacf;
 
-		fs_read["cam_to_cam_Rot"] >> c2cR;
-		fs_read["cam_to_cam_tvec"] >> c2cT;
+		fs_read["cam_to_cam_RT"] >> c2cRT;
+		
+		fs_read["cam_to_ground_RT"] >> c2gRT;
+		
+		//fs_read["cam_to_robot_RT"] >> c2rRT;
 
-		fs_read["cam_to_ground_Rot"] >> c2gR;
-		fs_read["cam_to_ground_tvec"] >> c2cT;
+		//fs_read["all_extrinsic_matrix"] >> allMat;
 	}
 	else
 		return false;
@@ -460,36 +465,49 @@ bool writeParametersYaml(const std::string full_path, const struct _rgbd_paramet
 	cv::FileStorage fs_write(full_path, cv::FileStorage::WRITE);
 
 	fs_write << "camera_position" << data->cam_id;
-	cv::Mat k = cv::Mat::eye(3, 3, CV_32FC1);
-	k.at<float>(0, 0) = data->color_intrinsic.fx; k.at<float>(0, 2) = data->color_intrinsic.ppx;
-	k.at<float>(1, 1) = data->color_intrinsic.fy; k.at<float>(1, 2) = data->color_intrinsic.ppy;
+	cv::Mat k = cv::Mat::eye(3, 3, CV_64FC1);
+	k.at<double>(0, 0) = data->color_intrinsic.fx; k.at<double>(0, 2) = data->color_intrinsic.ppx;
+	k.at<double>(1, 1) = data->color_intrinsic.fy; k.at<double>(1, 2) = data->color_intrinsic.ppy;
 
 	fs_write << "rgb_width" << data->color_intrinsic.width;
 	fs_write << "rgb_height" << data->color_intrinsic.height;
 
 	fs_write << "rgb_intrinsic" << k;
-	fs_write << "rgb_distortion" << cv::Mat(1, 5, CV_32FC1, (float*)data->color_intrinsic.coeffs);
+	//fs_write << "rgb_distortion" << cv::Mat(1, 5, CV_64FC1, (double*)data->color_intrinsic.coeffs);
+	//std::copy((double*)tmpDist.data, (double*)tmpDist.data + 5, (float*)data->color_intrinsic.coeffs);
+	for (int i = 0; i < 5; i++)
+		rd.at<double>(i) = data->color_intrinsic.coeffs[i];
+	fs_write << "rgb_distortion" << rd;
 
-	k.at<float>(0, 0) = data->depth_intrinsic.fx; k.at<float>(0, 2) = data->depth_intrinsic.ppx;
-	k.at<float>(1, 1) = data->depth_intrinsic.fy; k.at<float>(1, 2) = data->depth_intrinsic.ppy;
+	k.at<double>(0, 0) = data->depth_intrinsic.fx; k.at<double>(0, 2) = data->depth_intrinsic.ppx;
+	k.at<double>(1, 1) = data->depth_intrinsic.fy; k.at<double>(1, 2) = data->depth_intrinsic.ppy;
 
 	fs_write << "depth_width" << data->depth_intrinsic.width;
 	fs_write << "depth_height" << data->depth_intrinsic.height;
 
 	fs_write << "depth_intrinsic" << k;
-	fs_write << "depth_distortion" << cv::Mat(1, 5, CV_32FC1, (float*)data->depth_intrinsic.coeffs);
+	//fs_write << "depth_distortion" << cv::Mat(1, 5, CV_64FC1, (double*)data->depth_intrinsic.coeffs);
+	//std::copy((double*)tmpDist.data, (double*)tmpDist.data + 5, (float*)data->depth_intrinsic.coeffs);
+	for (int i = 0; i < 5; i++)
+		dd.at<double>(i) = data->depth_intrinsic.coeffs[i];
+	fs_write << "depth_distortion" << dd;	
 
-	fs_write << "depth_to_color_Rot" << cv::Mat(3, 3, CV_32FC1, (float*)data->depth_to_color.rotation);
-	fs_write << "depth_to_color_tvec" << cv::Mat(3, 1, CV_32FC1, (float*)data->depth_to_color.translation);
-
+	cv::Mat R(3, 3, CV_64FC1, (double*)data->depth_to_color.rotation);
+	cv::Mat t(3, 1, CV_64FC1, (double*)data->depth_to_color.translation);
+	R.copyTo(d2cRT(cv::Rect(0, 0, 3, 3)));
+	t.copyTo(d2cRT(cv::Rect(3, 0, 1, 3)));
+	fs_write << "depth_to_color_RT" << d2cRT;
+	
 	fs_write << "depth_multiplicative_correction_factor" << dmcf;
 	fs_write << "depth_additive_correction_factor" << dacf;
 
-	fs_write << "cam_to_cam_Rot" << c2cR;
-	fs_write << "cam_to_cam_tvec" << c2cT;
-
-	fs_write << "cam_to_ground_Rot" << c2gR;
-	fs_write << "cam_to_ground_tvec" << c2gT;
+	fs_write << "cam_to_cam_RT" << c2cRT;
+	
+	fs_write << "cam_to_ground_RT" << c2gRT;
+	
+	fs_write << "cam_to_robot_RT" << c2rRT;
+	//
+	fs_write << "all_extrinsic_matrix" << allMat;
 
 	fs_write.release();
 	return true;
@@ -499,17 +517,16 @@ bool readParameterYaml(const std::string full_path, struct _rgbd_parameters_ * d
 {
 	std::string cam_pos = "null";
 	int rwidth = 0, rheight = 0, dwidth = 0, dheight = 0;
-	cv::Mat ri = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat rd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat di = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat dd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat d2cR = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat d2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2cR = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat c2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2gR = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat c2gT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	float dmcf = 1.f, dacf = 0.f;
+	cv::Mat ri = cv::Mat::eye(3, 3, CV_64FC1);
+	cv::Mat rd(1, 5, CV_64FC1, cv::Scalar(0.f));
+	cv::Mat di = cv::Mat::eye(3, 3, CV_64FC1);
+	cv::Mat dd(1, 5, CV_64FC1, cv::Scalar(0.f));
+	cv::Mat d2cRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2cRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2gRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2rRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat allMat = cv::Mat::eye(4, 4, CV_64FC1);
+	double dmcf = 1.f, dacf = 0.f;
 
 	cv::FileStorage fs_read;
 	if (fs_read.open(full_path, cv::FileStorage::READ))
@@ -524,9 +541,12 @@ bool readParameterYaml(const std::string full_path, struct _rgbd_parameters_ * d
 
 		fs_read["rgb_intrinsic"] >> ri;
 		fs_read["rgb_distortion"] >> rd;
-		data->color_intrinsic.fx = ri.at<float>(0, 0); data->color_intrinsic.ppx = ri.at<float>(0, 2);
-		data->color_intrinsic.fy = ri.at<float>(1, 1); data->color_intrinsic.ppy = ri.at<float>(1, 2);
-		memcpy(data->color_intrinsic.coeffs, rd.data, sizeof(float) * 5);
+		data->color_intrinsic.fx = ri.at<double>(0, 0); data->color_intrinsic.ppx = ri.at<double>(0, 2);
+		data->color_intrinsic.fy = ri.at<double>(1, 1); data->color_intrinsic.ppy = ri.at<double>(1, 2);
+		//memcpy(data->color_intrinsic.coeffs, rd.data, sizeof(double) * 5);
+		for (int i = 0; i < 5; i++)
+			data->color_intrinsic.coeffs[i] = rd.at<double>(i);
+		//std::copy((double*)rd.data, (double*)rd.data + 5, data->color_intrinsic.coeffs);
 		
 		fs_read["depth_width"] >> dwidth;
 		fs_read["depth_height"] >> dheight;
@@ -535,46 +555,55 @@ bool readParameterYaml(const std::string full_path, struct _rgbd_parameters_ * d
 
 		fs_read["depth_intrinsic"] >> di;
 		fs_read["depth_distortion"] >> dd;
-		data->depth_intrinsic.fx = di.at<float>(0, 0); data->depth_intrinsic.ppx = di.at<float>(0, 2);
-		data->depth_intrinsic.fy = di.at<float>(1, 1); data->depth_intrinsic.ppy = di.at<float>(1, 2);
-		memcpy(data->depth_intrinsic.coeffs, dd.data, sizeof(float) * 5);
+		data->depth_intrinsic.fx = di.at<double>(0, 0); data->depth_intrinsic.ppx = di.at<double>(0, 2);
+		data->depth_intrinsic.fy = di.at<double>(1, 1); data->depth_intrinsic.ppy = di.at<double>(1, 2);
+		//memcpy(data->depth_intrinsic.coeffs, dd.data, sizeof(double) * 5);
+		for (int i = 0; i < 5; i++)
+			data->depth_intrinsic.coeffs[i] = dd.at<double>(i);
+		//std::copy((double*)dd.data, (double*)dd.data + 5, data->depth_intrinsic.coeffs);
 
-		fs_read["depth_to_color_Rot"] >> d2cR;
-		fs_read["depth_to_color_tvec"] >> d2cT;
-		memcpy(data->depth_to_color.rotation, d2cR.data, sizeof(float) * 9);
-		memcpy(data->depth_to_color.translation, d2cT.data, sizeof(float) * 3);
-
+		fs_read["depth_to_color_RT"] >> d2cRT;
+		cv::Mat R(3, 3, CV_64FC1, (double*)data->depth_to_color.rotation);
+		cv::Mat t(3, 1, CV_64FC1, (double*)data->depth_to_color.translation);
+		d2cRT(cv::Rect(0, 0, 3, 3)).copyTo(R);
+		d2cRT(cv::Rect(3, 0, 1, 3)).copyTo(t);
+		
 		fs_read["depth_multiplicative_correction_factor"] >> dmcf;
 		fs_read["depth_additive_correction_factor"] >> dacf;
 		data->depth_slope = dmcf;
 		data->depth_offset = dacf;
 
-		fs_read["cam_to_cam_Rot"] >> c2cR;
-		fs_read["cam_to_cam_tvec"] >> c2cT;
+		//fs_read["cam_to_cam_Rot"] >> c2cR;
+		//fs_read["cam_to_cam_tvec"] >> c2cT;
 
-		fs_read["cam_to_ground_Rot"] >> c2gR;
-		fs_read["cam_to_ground_tvec"] >> c2cT;
+		//fs_read["cam_to_ground_Rot"] >> c2gR;
+		//fs_read["cam_to_ground_tvec"] >> c2cT;
+		
+		//fs_read["cam_to_robot_Rot"] >> c2rR;
+		//fs_read["cam_to_robot_tvec"] >> c2rT;
+
+		//fs_read["all_extrinsic_matrix"] >> allMat;
 	}
 	else
 		return false;
 	fs_read.release();
+	return true;
 };
 
 bool writeDepthCorrectionFactorsYaml(const std::string full_path, const double dmcf, const double dacf)
 {
 	std::string cam_pos = "null";
 	int rwidth = 0, rheight = 0, dwidth = 0, dheight = 0;
-	cv::Mat ri = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat rd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat di = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat dd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat d2cR = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat d2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2cR = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat c2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2gR = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat c2gT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	//float dmcf = 1.f, dacf = 0.f;
+	cv::Mat ri = cv::Mat::eye(3, 3, CV_64FC1);
+	cv::Mat rd(1, 5, CV_64FC1, cv::Scalar(0.f));
+	cv::Mat di = cv::Mat::eye(3, 3, CV_64FC1);
+	cv::Mat dd(1, 5, CV_64FC1, cv::Scalar(0.f));
+	cv::Mat d2cRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2cRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2gRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2rRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat allMat = cv::Mat::eye(4, 4, CV_64FC1);
+	//double dmcf = 1.f, dacf = 0.f;
 
 	cv::FileStorage fs_read;
 
@@ -594,17 +623,18 @@ bool writeDepthCorrectionFactorsYaml(const std::string full_path, const double d
 		fs_read["depth_intrinsic"] >> di;
 		fs_read["depth_distortion"] >> dd;
 
-		fs_read["depth_to_color_Rot"] >> d2cR;
-		fs_read["depth_to_color_tvec"] >> d2cT;
-
+		fs_read["depth_to_color_RT"] >> d2cRT;
+		
 		/*fs_read["depth_multiplicative_correction_factor"] >> dmcf;
 		fs_read["depth_additive_correction_factor"] >> dacf;*/
 
-		fs_read["cam_to_cam_Rot"] >> c2cR;
-		fs_read["cam_to_cam_tvec"] >> c2cT;
-
-		fs_read["cam_to_ground_Rot"] >> c2gR;
-		fs_read["cam_to_ground_tvec"] >> c2cT;
+		//fs_read["cam_to_cam_RT"] >> c2cRT;
+		
+		//fs_read["cam_to_ground_RT"] >> c2gRT;
+		
+		//fs_read["cam_to_robot_RT"] >> c2rRT;
+		
+		//fs_read["all_extrinsic_matrix"] >> allMat;
 	}
 	else
 		return false;
@@ -627,23 +657,24 @@ bool writeDepthCorrectionFactorsYaml(const std::string full_path, const double d
 	fs_write << "depth_intrinsic" << di;
 	fs_write << "depth_distortion" << dd;
 
-	fs_write << "depth_to_color_Rot" << d2cR;
-	fs_write << "depth_to_color_tvec" << d2cT;
-
+	fs_write << "depth_to_color_RT" << d2cRT;
+	
 	fs_write << "depth_multiplicative_correction_factor" << dmcf;
 	fs_write << "depth_additive_correction_factor" << dacf / 1000.0f;
 
-	fs_write << "cam_to_cam_Rot" << c2cR;
-	fs_write << "cam_to_cam_tvec" << c2cT;
-
-	fs_write << "cam_to_ground_Rot" << c2gR;
-	fs_write << "cam_to_ground_tvec" << c2gT;
+	fs_write << "cam_to_cam_RT" << c2cRT;
+	
+	fs_write << "cam_to_ground_RT" << c2gRT;
+	
+	fs_write << "cam_to_robot_RT" << c2rRT;
+	//
+	fs_write << "all_extrinsic_matrix" << allMat;
 
 	fs_write.release();
 	return true;
 }
 
-bool readDepthCorrectionFactorsYaml(const std::string full_path, const float *dmcf, const float *dacf)
+bool readDepthCorrectionFactorsYaml(const std::string full_path, const double *dmcf, const double *dacf)
 {
 	cv::FileStorage fs_read;
 
@@ -661,18 +692,19 @@ bool readDepthCorrectionFactorsYaml(const std::string full_path, const float *dm
 		fs_read["depth_intrinsic"] >> di;
 		fs_read["depth_distortion"] >> dd;
 
-		fs_read["depth_to_color_Rot"] >> d2cR;
-		fs_read["depth_to_color_tvec"] >> d2cT;
+		fs_read["depth_to_color_RT"] >> d2cRT;
 		*/
 
-		fs_read["depth_multiplicative_correction_factor"] >> *(float*)dmcf;
-		fs_read["depth_additive_correction_factor"] >> *(float*)dacf;
+		fs_read["depth_multiplicative_correction_factor"] >> *(double*)dmcf;
+		fs_read["depth_additive_correction_factor"] >> *(double*)dacf;
 
-		/*fs_read["cam_to_cam_Rot"] >> c2cR;
-		fs_read["cam_to_cam_tvec"] >> c2cT;
-
-		fs_read["cam_to_ground_Rot"] >> c2gR;
-		fs_read["cam_to_ground_tvec"] >> c2gT;*/
+		/*fs_read["cam_to_cam_RT"] >> c2cRT;
+		
+		fs_read["cam_to_ground_RT"] >> c2gRT;
+				
+		fs_read["cam_to_robot_RT"] >> c2rRT;
+		
+		fs_read["all_extrinsic_matrix"] >> allMat;*/
 	}
 	else
 		return false;
@@ -680,21 +712,20 @@ bool readDepthCorrectionFactorsYaml(const std::string full_path, const float *dm
 	return true;
 }
 
-bool writeExtrinsicParametersYaml(const std::string full_path, const cv::Mat& R, const cv::Mat& t)
+bool writeCam2CamRtYaml(const std::string full_path, const cv::Mat& R, const cv::Mat& t)
 {
 	std::string cam_pos = "null";
 	int rwidth = 0, rheight = 0, dwidth = 0, dheight = 0;
-	cv::Mat ri = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat rd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat di = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat dd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat d2cR = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat d2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	//cv::Mat c2cR = cv::Mat::eye(3, 3, CV_32FC1);
-	//cv::Mat c2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2gR = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat c2gT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	float dmcf = 1.f, dacf = 0.f;
+	cv::Mat ri = cv::Mat::eye(3, 3, CV_64FC1);
+	cv::Mat rd(1, 5, CV_64FC1, cv::Scalar(0.f));
+	cv::Mat di = cv::Mat::eye(3, 3, CV_64FC1);
+	cv::Mat dd(1, 5, CV_64FC1, cv::Scalar(0.f));
+	cv::Mat d2cRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2cRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2gRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2rRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat allMat = cv::Mat::eye(4, 4, CV_64FC1);
+	double dmcf = 1.f, dacf = 0.f;
 
 	cv::FileStorage fs_read;
 	
@@ -714,17 +745,18 @@ bool writeExtrinsicParametersYaml(const std::string full_path, const cv::Mat& R,
 		fs_read["depth_intrinsic"] >> di;
 		fs_read["depth_distortion"] >> dd;
 
-		fs_read["depth_to_color_Rot"] >> d2cR;
-		fs_read["depth_to_color_tvec"] >> d2cT;
+		fs_read["depth_to_color_RT"] >> d2cRT;
 
 		fs_read["depth_multiplicative_correction_factor"] >> dmcf;
 		fs_read["depth_additive_correction_factor"] >> dacf;
 
-		/*fs_read["cam_to_cam_Rot"] >> c2cR;
-		fs_read["cam_to_cam_tvec"] >> c2cT;*/
-
-		fs_read["cam_to_ground_Rot"] >> c2gR;
-		fs_read["cam_to_ground_tvec"] >> c2gT;
+		//fs_read["cam_to_cam_RT"] >> c2cRT;
+		
+		fs_read["cam_to_ground_RT"] >> c2gRT;
+		
+		/*fs_read["cam_to_robot_RT"] >> c2rRT;
+		
+		fs_read["all_extrinsic_matrix"] >> allMat;*/
 	}
 	fs_read.release();
 
@@ -740,25 +772,29 @@ bool writeExtrinsicParametersYaml(const std::string full_path, const cv::Mat& R,
 	fs_write << "depth_intrinsic" << di;
 	fs_write << "depth_distortion" << dd;
 
-	fs_write << "depth_to_color_Rot" << d2cR;
-	fs_write << "depth_to_color_tvec" << d2cT;
-
+	fs_write << "depth_to_color_RT" << d2cRT;
+	
 	fs_write << "depth_multiplicative_correction_factor" << dmcf;
 	fs_write << "depth_additive_correction_factor" << dacf;
 
-	fs_write << "cam_to_cam_Rot" << R;
-	fs_write << "cam_to_cam_tvec" << t;
+	R.copyTo(c2cRT(cv::Rect(0, 0, 3, 3)));
+	t.copyTo(c2cRT(cv::Rect(3, 0, 1, 3)));
+	fs_write << "cam_to_cam_RT" << c2cRT;
+	
+	fs_write << "cam_to_ground_RT" << c2gRT;
 
-	fs_write << "cam_to_ground_Rot" << c2gR;
-	fs_write << "cam_to_ground_tvec" << c2gT;
+	fs_write << "cam_to_robot_RT" << c2rRT;
+	//
+	fs_write << "all_extrinsic_matrix" << allMat;
 
 	fs_write.release();
 	return true;
 }
 
-bool readExtrinsicParametersYaml(const std::string full_path, cv::Mat& R, cv::Mat& t)
+bool readCam2CamRtYaml(const std::string full_path, cv::Mat& R, cv::Mat& t)
 {
 	cv::FileStorage fs_read;
+	cv::Mat c2cRT;
 
 	if (fs_read.open(full_path, cv::FileStorage::READ))
 	{
@@ -774,18 +810,23 @@ bool readExtrinsicParametersYaml(const std::string full_path, cv::Mat& R, cv::Ma
 		fs_read["depth_intrinsic"] >> di;
 		fs_read["depth_distortion"] >> dd;
 
-		fs_read["depth_to_color_Rot"] >> d2cR;
-		fs_read["depth_to_color_tvec"] >> d2cT;
-
-		fs_read["depth_multiplicative_correction_factor"] >> *(float*)dmcf;
-		fs_read["depth_additive_correction_factor"] >> *(float*)dacf;
+		fs_read["depth_to_color_RT"] >> d2cRT;
+		
+		fs_read["depth_multiplicative_correction_factor"] >> *(double*)dmcf;
+		fs_read["depth_additive_correction_factor"] >> *(double*)dacf;
 		*/
 
-		fs_read["cam_to_cam_Rot"] >> R;
-		fs_read["cam_to_cam_tvec"] >> t;
-
-		/*fs_read["cam_to_ground_Rot"] >> c2gR;
-		fs_read["cam_to_ground_tvec"] >> c2gT;*/
+		fs_read["cam_to_cam_RT"] >> c2cRT;
+		R = cv::Mat::eye(3, 3, CV_64FC1);
+		t = cv::Mat::eye(3, 1, CV_64FC1);
+		c2cRT(cv::Rect(0, 0, 3, 3)).copyTo(R);
+		c2cRT(cv::Rect(3, 0, 1, 3)).copyTo(t);
+		
+		/*fs_read["cam_to_ground_RT"] >> c2gRT;
+		
+		fs_read["cam_to_robot_RT"] >> c2rRT;
+		
+		fs_read["all_extrinsic_matrix"] >> allMat;*/
 	}
 	else
 		return false;
@@ -794,21 +835,20 @@ bool readExtrinsicParametersYaml(const std::string full_path, cv::Mat& R, cv::Ma
 	return true;
 }
 
-bool writeCam2GroundRt(const std::string full_path, const cv::Mat& R, const cv::Mat& t)
+bool writeCam2GroundRtYaml(const std::string full_path, const cv::Mat& R, const cv::Mat& t)
 {
 	std::string cam_pos = "null";
 	int rwidth = 0, rheight = 0, dwidth = 0, dheight = 0;
-	cv::Mat ri = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat rd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat di = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat dd(1, 5, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat d2cR = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat d2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	cv::Mat c2cR = cv::Mat::eye(3, 3, CV_32FC1);
-	cv::Mat c2cT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	//cv::Mat c2gR = cv::Mat::eye(3, 3, CV_32FC1);
-	//cv::Mat c2gT(3, 1, CV_32FC1, cv::Scalar(0.f));
-	float dmcf = 1.f, dacf = 0.f;
+	cv::Mat ri = cv::Mat::eye(3, 3, CV_64FC1);
+	cv::Mat rd(1, 5, CV_64FC1, cv::Scalar(0.f));
+	cv::Mat di = cv::Mat::eye(3, 3, CV_64FC1);
+	cv::Mat dd(1, 5, CV_64FC1, cv::Scalar(0.f));
+	cv::Mat d2cRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2cRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2gRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2rRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat allMat = cv::Mat::eye(4, 4, CV_64FC1);
+	double dmcf = 1.f, dacf = 0.f;
 
 	cv::FileStorage fs_read;
 	
@@ -826,17 +866,18 @@ bool writeCam2GroundRt(const std::string full_path, const cv::Mat& R, const cv::
 		fs_read["depth_intrinsic"] >> di;
 		fs_read["depth_distortion"] >> dd;
 
-		fs_read["depth_to_color_Rot"] >> d2cR;
-		fs_read["depth_to_color_tvec"] >> d2cT;
-
+		fs_read["depth_to_color_RT"] >> d2cRT;
+		
 		fs_read["depth_multiplicative_correction_factor"] >> dmcf;
 		fs_read["depth_additive_correction_factor"] >> dacf;
 
-		fs_read["cam_to_cam_Rot"] >> c2cR;
-		fs_read["cam_to_cam_tvec"] >> c2cT;
+		fs_read["cam_to_cam_RT"] >> c2cRT;
 
-		/*fs_read["cam_to_ground_Rot"] >> c2gR;
-		fs_read["cam_to_ground_tvec"] >> c2gT;*/
+		/*fs_read["cam_to_ground_RT"] >> c2gRT;
+				
+		fs_read["cam_to_robot_RT"] >> c2rRT;
+		
+		fs_read["all_extrinsic_matrix"] >> allMat;*/
 	}
 	fs_read.release();
 
@@ -852,26 +893,29 @@ bool writeCam2GroundRt(const std::string full_path, const cv::Mat& R, const cv::
 	fs_write << "depth_intrinsic" << di;
 	fs_write << "depth_distortion" << dd;
 
-	fs_write << "depth_to_color_Rot" << d2cR;
-	fs_write << "depth_to_color_tvec" << d2cT;
-
+	fs_write << "depth_to_color_RT" << d2cRT;
+	
 	fs_write << "depth_multiplicative_correction_factor" << dmcf;
 	fs_write << "depth_additive_correction_factor" << dacf;
 
-	fs_write << "cam_to_cam_Rot" << c2cR;
-	fs_write << "cam_to_cam_tvec" << c2cT;
-
-	fs_write << "cam_to_ground_Rot" << R;
-	fs_write << "cam_to_ground_tvec" << t;
-
+	fs_write << "cam_to_cam_RT" << c2cRT;
+	
+	R.copyTo(c2gRT(cv::Rect(0, 0, 3, 3)));
+	t.copyTo(c2gRT(cv::Rect(3, 0, 1, 3)));
+	fs_write << "cam_to_ground_RT" << c2gRT;
+	
+	fs_write << "cam_to_robot_RT" << c2rRT;
+	//
+	fs_write << "all_extrinsic_matrix" << allMat;
+	
 	fs_write.release();
 	return true;
 }
 
-bool readCam2GroundRt(const std::string full_path, cv::Mat& R, cv::Mat& t)
+bool readCam2GroundRtYaml(const std::string full_path, cv::Mat& R, cv::Mat& t)
 {
 	cv::FileStorage fs_read;
-	
+	cv::Mat c2gRT;
 	if (fs_read.open(full_path, cv::FileStorage::READ))
 	{
 		/*fs_read["camera_position"] >> cam_pos;
@@ -889,18 +933,277 @@ bool readCam2GroundRt(const std::string full_path, cv::Mat& R, cv::Mat& t)
 		fs_read["depth_to_color_Rot"] >> d2cR;
 		fs_read["depth_to_color_tvec"] >> d2cT;
 
-		fs_read["depth_multiplicative_correction_factor"] >> *(float*)dmcf;
-		fs_read["depth_additive_correction_factor"] >> *(float*)dacf;
+		fs_read["depth_multiplicative_correction_factor"] >> *(double*)dmcf;
+		fs_read["depth_additive_correction_factor"] >> *(double*)dacf;
 
 
 		fs_read["cam_to_cam_Rot"] >> R;
 		fs_read["cam_to_cam_tvec"] >> t;*/
 
-		fs_read["cam_to_ground_Rot"] >> R;
-		fs_read["cam_to_ground_tvec"] >> t;
+		fs_read["cam_to_ground_RT"] >> c2gRT;
+		R = cv::Mat::eye(3, 3, CV_64FC1);
+		t = cv::Mat::eye(3, 1, CV_64FC1);
+		c2gRT(cv::Rect(0, 0, 3, 3)).copyTo(R);
+		c2gRT(cv::Rect(3, 0, 1, 3)).copyTo(t);
+
+		/*
+		fs_read["cam_to_robot_Rot"] >> c2rR;
+		fs_read["cam_to_robot_tvec"] >> c2rT;
+
+		fs_read["all_extrinsic_matrix"] >> allMat;*/
 	}
 	else
 		return false;
+	fs_read.release();
+	return true;
+}
+
+bool writeCam2RobotRtYaml(const std::string full_path, const cv::Mat & R, const cv::Mat & t)
+{
+	std::string cam_pos = "null";
+	int rwidth = 0, rheight = 0, dwidth = 0, dheight = 0;
+	cv::Mat ri = cv::Mat::eye(3, 3, CV_64FC1);
+	cv::Mat rd(1, 5, CV_64FC1, cv::Scalar(0.0));
+	cv::Mat di = cv::Mat::eye(3, 3, CV_64FC1);
+	cv::Mat dd(1, 5, CV_64FC1, cv::Scalar(0.0));
+	cv::Mat d2cRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2cRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2gRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2rRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat allMat = cv::Mat::eye(4, 4, CV_64FC1);
+	double dmcf = 1.0, dacf = 0.0;
+
+	cv::FileStorage fs_read;
+
+	if (fs_read.open(full_path, cv::FileStorage::READ))
+	{
+		fs_read["camera_position"] >> cam_pos;
+
+		fs_read["rgb_width"] >> rwidth;
+		fs_read["rgb_height"] >> rheight;
+
+		fs_read["rgb_intrinsic"] >> ri;
+		fs_read["rgb_distortion"] >> rd;
+
+		fs_read["depth_width"] >> dwidth;
+		fs_read["depth_height"] >> dheight;
+
+		fs_read["depth_intrinsic"] >> di;
+		fs_read["depth_distortion"] >> dd;
+
+		fs_read["depth_to_color_RT"] >> d2cRT;
+		
+		fs_read["depth_multiplicative_correction_factor"] >> dmcf;
+		fs_read["depth_additive_correction_factor"] >> dacf;
+
+		fs_read["cam_to_cam_RT"] >> c2cRT;
+		
+		fs_read["cam_to_ground_RT"] >> c2gRT;
+		
+		/*fs_read["cam_to_robot_RT"] >> c2rRT;
+		
+		fs_read["all_extrinsic_matrix"] >> allMat;*/
+	}
+	fs_read.release();
+
+	cv::FileStorage fs_write(full_path, cv::FileStorage::WRITE);
+	fs_write << "camera_position" << cam_pos;
+	fs_write << "rgb_width" << rwidth;
+	fs_write << "rgb_height" << rheight;
+	fs_write << "rgb_intrinsic" << ri;
+	fs_write << "rgb_distortion" << rd;
+
+	fs_write << "depth_width" << dwidth;
+	fs_write << "depth_height" << dheight;
+	fs_write << "depth_intrinsic" << di;
+	fs_write << "depth_distortion" << dd;
+
+	fs_write << "depth_to_color_RT" << d2cRT;
+	
+	fs_write << "depth_multiplicative_correction_factor" << dmcf;
+	fs_write << "depth_additive_correction_factor" << dacf;
+
+	fs_write << "cam_to_cam_RT" << c2cRT;
+	
+	fs_write << "cam_to_ground_RT" << c2gRT;
+	
+	R.copyTo(c2rRT(cv::Rect(0, 0, 3, 3)));
+	t.copyTo(c2rRT(cv::Rect(3, 0, 1, 3)));
+	fs_write << "cam_to_robot_RT" << c2rRT;
+	//
+	fs_write << "all_extrinsic_matrix" << allMat;
+
+	fs_write.release();
+	return true;
+}
+
+bool readCam2RobotRtYaml(const std::string full_path, cv::Mat & R, cv::Mat & t)
+{
+	cv::FileStorage fs_read;
+	cv::Mat c2rRT;
+	if (fs_read.open(full_path, cv::FileStorage::READ))
+	{
+		/*fs_read["camera_position"] >> cam_pos;
+
+		fs_read["rgb_width"] >> rwidth;
+		fs_read["rgb_height"] >> rheight;
+		fs_read["rgb_intrinsic"] >> ri;
+		fs_read["rgb_distortion"] >> rd;
+
+		fs_read["depth_width"] >> dwidth;
+		fs_read["depth_height"] >> dheight;
+		fs_read["depth_intrinsic"] >> di;
+		fs_read["depth_distortion"] >> dd;
+
+		fs_read["depth_to_color_Rot"] >> d2cR;
+		fs_read["depth_to_color_tvec"] >> d2cT;
+
+		fs_read["depth_multiplicative_correction_factor"] >> *(double*)dmcf;
+		fs_read["depth_additive_correction_factor"] >> *(double*)dacf;
+
+
+		fs_read["cam_to_cam_Rot"] >> R;
+		fs_read["cam_to_cam_tvec"] >> t;
+
+		fs_read["cam_to_ground_Rot"] >> R;
+		fs_read["cam_to_ground_tvec"] >> t;*/
+
+		
+		fs_read["cam_to_robot_RT"] >> c2rRT;
+		R = cv::Mat::eye(3, 3, CV_64FC1);
+		t = cv::Mat::eye(3, 1, CV_64FC1);
+		c2rRT(cv::Rect(0, 0, 3, 3)).copyTo(R);
+		c2rRT(cv::Rect(3, 0, 1, 3)).copyTo(t);
+		/*
+		fs_read["all_extrinsic_matrix"] >> allMat;*/
+	}
+	else
+		return false;
+	fs_read.release();
+	return true;
+}
+
+bool writeAllExtrinsicYaml(const std::string full_path, const cv::Mat& R, const cv::Mat& t)
+{
+	std::string cam_pos = "null";
+	int rwidth = 0, rheight = 0, dwidth = 0, dheight = 0;
+	cv::Mat ri = cv::Mat::eye(3, 3, CV_64FC1);
+	cv::Mat rd(1, 5, CV_64FC1, cv::Scalar(0.f));
+	cv::Mat di = cv::Mat::eye(3, 3, CV_64FC1);
+	cv::Mat dd(1, 5, CV_64FC1, cv::Scalar(0.f));
+	cv::Mat d2cRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2cRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2gRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat c2rRT = cv::Mat::eye(4, 4, CV_64FC1);
+	cv::Mat allMat = cv::Mat::eye(4, 4, CV_64FC1);
+	double dmcf = 1.f, dacf = 0.f;
+
+	cv::FileStorage fs_read;
+
+	if (fs_read.open(full_path, cv::FileStorage::READ))
+	{
+		fs_read["camera_position"] >> cam_pos;
+
+		fs_read["rgb_width"] >> rwidth;
+		fs_read["rgb_height"] >> rheight;
+
+		fs_read["rgb_intrinsic"] >> ri;
+		fs_read["rgb_distortion"] >> rd;
+
+		fs_read["depth_width"] >> dwidth;
+		fs_read["depth_height"] >> dheight;
+
+		fs_read["depth_intrinsic"] >> di;
+		fs_read["depth_distortion"] >> dd;
+
+		fs_read["depth_to_color_RT"] >> d2cRT;
+		
+		fs_read["depth_multiplicative_correction_factor"] >> dmcf;
+		fs_read["depth_additive_correction_factor"] >> dacf;
+
+		fs_read["cam_to_cam_RT"] >> c2cRT;
+		
+		fs_read["cam_to_ground_RT"] >> c2gRT;
+
+		fs_read["cam_to_robot_RT"] >> c2rRT;
+
+		//fs_read["all_extrinsic_matrix"] >> allMat;
+	}
+	fs_read.release();
+
+	cv::FileStorage fs_write(full_path, cv::FileStorage::WRITE);
+	fs_write << "camera_position" << cam_pos;
+	fs_write << "rgb_width" << rwidth;
+	fs_write << "rgb_height" << rheight;
+	fs_write << "rgb_intrinsic" << ri;
+	fs_write << "rgb_distortion" << rd;
+
+	fs_write << "depth_width" << dwidth;
+	fs_write << "depth_height" << dheight;
+	fs_write << "depth_intrinsic" << di;
+	fs_write << "depth_distortion" << dd;
+
+	fs_write << "depth_to_color_RT" << d2cRT;
+
+	fs_write << "depth_multiplicative_correction_factor" << dmcf;
+	fs_write << "depth_additive_correction_factor" << dacf;
+
+	fs_write << "cam_to_cam_RT" << c2cRT;
+	
+	fs_write << "cam_to_ground_RT" << c2gRT;
+
+	fs_write << "cam_to_robot_RT" << c2rRT;
+	//
+	R.copyTo(allMat(cv::Rect(0, 0, 3, 3)));
+	t.copyTo(allMat(cv::Rect(3, 0, 1, 3)));
+	fs_write << "all_extrinsic_matrix" << allMat;
+
+	fs_write.release();
+	return true;
+}
+
+bool readAllExtrinsicYaml(const std::string full_path, cv::Mat & R, cv::Mat & t)
+{
+	cv::FileStorage fs_read;
+	cv::Mat allMat = cv::Mat::eye(4, 4, CV_64FC1);
+	if (fs_read.open(full_path, cv::FileStorage::READ))
+	{
+		/*fs_read["camera_position"] >> cam_pos;
+
+		fs_read["rgb_width"] >> rwidth;
+		fs_read["rgb_height"] >> rheight;
+		fs_read["rgb_intrinsic"] >> ri;
+		fs_read["rgb_distortion"] >> rd;
+
+		fs_read["depth_width"] >> dwidth;
+		fs_read["depth_height"] >> dheight;
+		fs_read["depth_intrinsic"] >> di;
+		fs_read["depth_distortion"] >> dd;
+
+		fs_read["depth_to_color_Rot"] >> d2cR;
+		fs_read["depth_to_color_tvec"] >> d2cT;
+
+		fs_read["depth_multiplicative_correction_factor"] >> *(double*)dmcf;
+		fs_read["depth_additive_correction_factor"] >> *(double*)dacf;
+		
+		fs_read["cam_to_cam_Rot"] >> R;
+		fs_read["cam_to_cam_tvec"] >> t;
+
+		fs_read["cam_to_ground_Rot"] >> R;
+		fs_read["cam_to_ground_tvec"] >> t;
+				
+		fs_read["cam_to_robot_Rot"] >> c2rR;
+		fs_read["cam_to_robot_tvec"] >> c2rT;
+		*/
+		fs_read["all_extrinsic_matrix"] >> allMat;
+		R = cv::Mat::eye(3, 3, CV_64FC1);
+		t = cv::Mat::eye(3, 1, CV_64FC1);
+		allMat(cv::Rect(0, 0, 3, 3)).copyTo(R);
+		allMat(cv::Rect(3, 0, 1, 3)).copyTo(t);
+	}
+	else
+		return false;
+	
 	fs_read.release();
 	return true;
 }
@@ -941,4 +1244,22 @@ void readCameraOrder(std::string full_path, std::string& camera_name, std::vecto
 	}
 	cam_order = order;
 	return;
-};
+}
+
+void rotate2RobotDirection(const double th, cv::Mat& R)
+{
+	// R = [cos		0	sin; 
+	//		0		1	0;
+	//		-sin	0	cos]
+
+	double radianTh = th * CV_PI / (double)180.0;
+	double cosTh = std::cos(radianTh);
+	double sinTh = std::sin(radianTh);
+
+	R = cv::Mat::eye(3, 3, CV_64FC1);
+	R.at<double>(0, 0) = (double)cosTh;
+	R.at<double>(0, 2) = (double)sinTh;
+	R.at<double>(2, 0) = -(double)sinTh;
+	R.at<double>(2, 2) = (double)cosTh;
+}
+;

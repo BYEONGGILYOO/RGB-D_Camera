@@ -51,7 +51,7 @@ bool Orbbec::initialize(std::string cam_order_path)
 	this->num_of_cameras = list_of_devices.getSize();
 
 	if (num_of_cameras == 0) {
-		throw std::runtime_error("No device detected!");
+		throw new std::exception("No device detected!");
 		return false;
 	}
 
