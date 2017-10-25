@@ -492,8 +492,13 @@ bool writeParametersYaml(const std::string full_path, const struct _rgbd_paramet
 		dd.at<double>(i) = data->depth_intrinsic.coeffs[i];
 	fs_write << "depth_distortion" << dd;	
 
-	cv::Mat R(3, 3, CV_64FC1, (double*)data->depth_to_color.rotation);
-	cv::Mat t(3, 1, CV_64FC1, (double*)data->depth_to_color.translation);
+	cv::Mat R(3, 3, CV_64FC1);
+	cv::Mat t(3, 1, CV_64FC1);
+	for (int i = 0; i < 9; i++)
+		R.at<double>(i) = data->depth_to_color.rotation[i];
+	for (int i = 0; i < 3; i++)
+		t.at<double>(i) = data->depth_to_color.translation[i];
+	
 	R.copyTo(d2cRT(cv::Rect(0, 0, 3, 3)));
 	t.copyTo(d2cRT(cv::Rect(3, 0, 1, 3)));
 	fs_write << "depth_to_color_RT" << d2cRT;
