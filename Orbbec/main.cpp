@@ -32,8 +32,8 @@ int main(int argc, char** argv)
 	}
 	catch (const std::exception& ex)
 	{
-		ex.what();
-		return 1;
+		std::cout << ex.what() << std::endl;
+		//return 1;
 	}
 			
 	int num_of_sensor = rgbdData->num_of_senseor;

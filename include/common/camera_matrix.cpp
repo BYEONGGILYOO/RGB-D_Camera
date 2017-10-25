@@ -563,10 +563,20 @@ bool readParameterYaml(const std::string full_path, struct _rgbd_parameters_ * d
 		//std::copy((double*)dd.data, (double*)dd.data + 5, data->depth_intrinsic.coeffs);
 
 		fs_read["depth_to_color_RT"] >> d2cRT;
-		cv::Mat R(3, 3, CV_64FC1, (double*)data->depth_to_color.rotation);
-		cv::Mat t(3, 1, CV_64FC1, (double*)data->depth_to_color.translation);
+		cv::Mat R(3, 3, CV_64FC1);
+		cv::Mat t(3, 1, CV_64FC1);
 		d2cRT(cv::Rect(0, 0, 3, 3)).copyTo(R);
 		d2cRT(cv::Rect(3, 0, 1, 3)).copyTo(t);
+
+		for (int i = 0; i < 9; i++)
+			data->depth_to_color.rotation[i] = R.at<double>(i);
+		
+		for (int i = 0; i < 3; i++)
+			data->depth_to_color.translation[i] = t.at<double>(i);
+		
+		std::cout << d2cRT << std::endl;
+		std::cout << R << std::endl;
+		std::cout << t << std::endl;
 		
 		fs_read["depth_multiplicative_correction_factor"] >> dmcf;
 		fs_read["depth_additive_correction_factor"] >> dacf;

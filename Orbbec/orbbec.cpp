@@ -84,16 +84,22 @@ bool Orbbec::initialize(std::string cam_order_path)
 		m_pData->colorK[0][1] = m_pRGBDparam[0].color_intrinsic.ppy;
 		m_pData->colorK[0][2] = m_pRGBDparam[0].color_intrinsic.fx;
 		m_pData->colorK[0][3] = m_pRGBDparam[0].color_intrinsic.fy;
-		memcpy(m_pData->colorCoeffs[0], m_pRGBDparam[0].color_intrinsic.coeffs, sizeof(float) * 5);
+		for (int j = 0; j < 5; j++)
+			m_pData->colorCoeffs[0][j] = m_pRGBDparam[0].color_intrinsic.coeffs[j];
 
 		m_pData->depthK[0][0] = m_pRGBDparam[0].depth_intrinsic.ppx;
 		m_pData->depthK[0][1] = m_pRGBDparam[0].depth_intrinsic.ppy;
 		m_pData->depthK[0][2] = m_pRGBDparam[0].depth_intrinsic.fx;
 		m_pData->depthK[0][3] = m_pRGBDparam[0].depth_intrinsic.fy;
-		memcpy(m_pData->depthCoeffs[0], m_pRGBDparam[0].depth_intrinsic.coeffs, sizeof(float) * 5);
+		for (int j = 0; j < 5; j++)
+			m_pData->depthCoeffs[0][j] = m_pRGBDparam[0].depth_intrinsic.coeffs[j];
 
-		memcpy(m_pData->depth_to_color_R[0], m_pRGBDparam[0].depth_to_color.rotation, sizeof(float) * 9);
-		memcpy(m_pData->depth_to_color_tvec[0], m_pRGBDparam[0].depth_to_color.translation, sizeof(float) * 3);
+		for (int j = 0; j < 9; j++)
+		{
+			m_pData->depth_to_color_R[0][j] = m_pRGBDparam[0].depth_to_color.rotation[j];
+		}
+		for (int j = 0; j < 3; j++)
+			m_pData->depth_to_color_tvec[0][j] = m_pRGBDparam[0].depth_to_color.translation[j];
 	}
 
 	// set the parameters
@@ -314,17 +320,17 @@ void Orbbec::getDepth(int dev_idx, unsigned short* output_data, double* time)
 					float depth_val_float = (float)depth_val;
 					
 					// method 1 : 13 ~ 14 milisec
-					float2 depth_pixel = { (float)x, (float)y };
+					/*float2 depth_pixel = { (float)x, (float)y };
 					float3 depth_point = m_pRGBDparam[dev_idx].depth_intrinsic.deproject(depth_pixel, depth_val_float, true);
 					float3 color_point = m_pRGBDparam[dev_idx].depth_to_color.transform(depth_point);
 					float2 color_pixel = m_pRGBDparam[dev_idx].color_intrinsic.project(color_point, true);
 
-					const int cx = (int)std::round(color_pixel.x), cy = (int)std::round(color_pixel.y);
+					const int cx = (int)std::round(color_pixel.x), cy = (int)std::round(color_pixel.y);*/
 
 					// mehtod 2 : 9 ~ 10 milisec
-					/*const int cx = (int)std::round(m_pRegistrationMatrix[dev_idx][0] * (double)x + m_pRegistrationMatrix[dev_idx][1] * (double)y + m_pRegistrationMatrix[dev_idx][2] + m_pRegistrationMatrix[dev_idx][3] / (double)depth_val_float);
+					const int cx = (int)std::round(m_pRegistrationMatrix[dev_idx][0] * (double)x + m_pRegistrationMatrix[dev_idx][1] * (double)y + m_pRegistrationMatrix[dev_idx][2] + m_pRegistrationMatrix[dev_idx][3] / (double)depth_val_float);
 					const int cy = (int)std::round(m_pRegistrationMatrix[dev_idx][4] * (double)x + m_pRegistrationMatrix[dev_idx][5] * (double)y + m_pRegistrationMatrix[dev_idx][6] + m_pRegistrationMatrix[dev_idx][7] / (double)depth_val_float);
-					*/
+					
 					if (cx < 0 || cy < 0 || cx >= m_pRGBDparam[dev_idx].color_intrinsic.width || cy >= m_pRGBDparam[dev_idx].color_intrinsic.height) 
 						continue;
 					
@@ -676,9 +682,9 @@ void Orbbec::threadRun(std::mutex* mtx)
 {
 	while (!m_bStopThread)
 	{
-		mtx->lock();
+		//mtx->lock();
 		getData();
-		mtx->unlock();
+		//mtx->unlock();
 		Sleep(100);
 	}
 }
@@ -697,17 +703,25 @@ void Orbbec::readCalibrationData(std::string path)
 		m_pData->colorK[i][1] = m_pRGBDparam[i].color_intrinsic.ppy;
 		m_pData->colorK[i][2] = m_pRGBDparam[i].color_intrinsic.fx;
 		m_pData->colorK[i][3] = m_pRGBDparam[i].color_intrinsic.fy;
-		memcpy(m_pData->colorCoeffs[i], m_pRGBDparam[i].color_intrinsic.coeffs, sizeof(float) * 5);
+
+		for (int j = 0; j < 5; j++)
+			m_pData->colorCoeffs[i][j] = m_pRGBDparam[i].color_intrinsic.coeffs[j];
 
 		m_pData->depthK[i][0] = m_pRGBDparam[i].depth_intrinsic.ppx;
 		m_pData->depthK[i][1] = m_pRGBDparam[i].depth_intrinsic.ppy;
 		m_pData->depthK[i][2] = m_pRGBDparam[i].depth_intrinsic.fx;
 		m_pData->depthK[i][3] = m_pRGBDparam[i].depth_intrinsic.fy;
-		memcpy(m_pData->depthCoeffs[i], m_pRGBDparam[i].depth_intrinsic.coeffs, sizeof(float) * 5);
-
 		
-		memcpy(m_pData->depth_to_color_R[i], m_pRGBDparam[i].depth_to_color.rotation, sizeof(float) * 9);
-		memcpy(m_pData->depth_to_color_tvec[i], m_pRGBDparam[i].depth_to_color.translation, sizeof(float) * 3);
+		for (int j = 0; j < 5; j++)
+			m_pData->depthCoeffs[i][j] = m_pRGBDparam[i].depth_intrinsic.coeffs[j];
+		
+		for (int j = 0; j < 9; j++)
+		{
+			m_pData->depth_to_color_R[i][j] = m_pRGBDparam[i].depth_to_color.rotation[j];
+		}
+		
+		for (int j = 0; j < 3; j++)
+			m_pData->depth_to_color_tvec[i][j] = m_pRGBDparam[i].depth_to_color.translation[j];
 	}
 }
 

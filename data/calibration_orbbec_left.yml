@@ -1,33 +1,66 @@
 %YAML:1.0
 ---
-cam_name: "left"
+camera_position: left
+rgb_width: 640
+rgb_height: 480
 rgb_intrinsic: !!opencv-matrix
    rows: 3
    cols: 3
-   dt: f
-   data: [ 506.835, 0., 293.869, 0., 508.649, 253.018, 0., 0., 1. ]
+   dt: d
+   data: [ 548.712, 0., 324.899, 0., 511.684, 237.574, 0., 0., 1. ]
 rgb_distortion: !!opencv-matrix
    rows: 1
    cols: 5
-   dt: f
+   dt: d
    data: [ 0., 0., 0., 0., 0. ]
+depth_width: 640
+depth_height: 480
 depth_intrinsic: !!opencv-matrix
    rows: 3
    cols: 3
-   dt: f
-   data: [ 565.822, 0., 305.448, 0., 565.617, 259.221, 0., 0., 1. ]
+   dt: d
+   data: [ 612.193, 0., 317.912, 0., 570.519, 250.816, 0., 0., 1. ]
 depth_distortion: !!opencv-matrix
    rows: 1
    cols: 5
-   dt: f
+   dt: d
    data: [ 0., 0., 0., 0., 0. ]
-depth_to_color_Rot: !!opencv-matrix
-   rows: 3
-   cols: 3
-   dt: f
-   data: [ 0.999975, 0.00477529, 0.00514684, -0.0048215, 0.999948, 0.0090032, -0.00510358, -0.00902779, 0.999946 ]
-depth_to_color_tvec: !!opencv-matrix
-   rows: 3
-   cols: 1
-   dt: f
-   data: [ -22.8327, -0.358389, -2.92743 ]
+depth_to_color_RT: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [ 0.999997, -0.000101388, 0.00252126, -24.0655, 0.000107021, 0.999997, -0.00223406, -1.69497, -0.00252102, 0.00223432, 0.999994, 3.31236, 0., 0., 0., 1. ]
+depth_multiplicative_correction_factor: 1.
+depth_additive_correction_factor: 0.
+cam_to_cam_RT: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [ 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0.,
+       1. ]
+cam_to_ground_RT: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [ -9.9277316584804820e-01, -1.2000600473327912e-01, 0., 0.,
+       1.0155114961858139e-01, -8.4010176429438299e-01,
+       5.3283805198259793e-01, -7.9957862637949673e-01,
+       -6.3943765788294860e-02, 5.2898731975107049e-01,
+       8.4621723591486264e-01, 0., 0., 0., 0., 1. ]
+cam_to_robot_RT: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [ 8.0901699437494745e-01, 0., -5.8778525229247314e-01,
+       -1.2000000000000000e-01, 0., 1., 0., 0., 5.8778525229247314e-01,
+       0., 8.0901699437494745e-01, 0., 0., 0., 0., 1. ]
+all_extrinsic_matrix: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [ -7.6558516022408540e-01, -4.0801784245566530e-01,
+       -4.9739401150645679e-01, -1.2000000000000000e-01,
+       1.0155114961858139e-01, -8.4010176429438299e-01,
+       5.3283805198259793e-01, -7.9957862637949673e-01,
+       -6.3526901896425414e-01, 3.5742197171870815e-01,
+       6.8460412478811805e-01, 0., 0., 0., 0., 1. ]
