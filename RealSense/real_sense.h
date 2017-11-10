@@ -407,7 +407,7 @@ int RealSense::initialize(void)
 
 	if (SensorCount == 0)
 	{
-		throw std::runtime_error("No device detected. Is it plugged in?");
+		throw new std::exception("No device detected. Is it plugged in?");
 		return 0;
 	}
 

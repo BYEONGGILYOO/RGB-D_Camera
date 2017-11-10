@@ -64,6 +64,8 @@ public:
 	void enableOverlap(const bool flag = false);
 	bool overlapEnabled() const;
 
+	bool pixel2world(int ix, int iy, uint16_t depth, RGBD_Parameters * rgbd_param, double * wx, double * wy, double * wz);
+
 	void stop();
 	void start();
 private:
